@@ -1,0 +1,36 @@
+# Modify dataset paths according to the mounted Kaggle Dataset name.
+experiment_name: kaggle_deeplabv3plus_effb3
+seed: 42
+device: auto
+mixed_precision: true
+data:
+  train_images_dir: /kaggle/input/your-dataset/train/images
+  train_masks_dir: /kaggle/input/your-dataset/train/masks
+  val_images_dir: /kaggle/input/your-dataset/val/images
+  val_masks_dir: /kaggle/input/your-dataset/val/masks
+  image_size: 384
+model:
+  model_name: deeplabv3plus
+  in_channels: 3
+  out_channels: 1
+  encoder_name: efficientnet-b3
+  encoder_weights: imagenet
+training:
+  batch_size: 8
+  epochs: 50
+  lr: 1.0e-4
+  optimizer: adamw
+  scheduler: cosine
+  loss_name: bce_dice
+  num_workers: 2
+  early_stopping:
+    enabled: true
+    patience: 10
+    monitor: val_dice
+    mode: max
+augmentation:
+  enabled: true
+paths:
+  output_dir: /kaggle/working/outputs
+  checkpoint_dir: /kaggle/working/checkpoints
+

@@ -1,0 +1,45 @@
+# Fast Kaggle smoke-test configuration. Run this before long training.
+experiment_name: kaggle_debug
+seed: 42
+device: auto
+mixed_precision: true
+
+data:
+  train_images_dir: /kaggle/input/your-dataset/train/images
+  train_masks_dir: /kaggle/input/your-dataset/train/masks
+  val_images_dir: /kaggle/input/your-dataset/val/images
+  val_masks_dir: /kaggle/input/your-dataset/val/masks
+  image_size: 256
+
+model:
+  model_name: unet
+  in_channels: 3
+  out_channels: 1
+
+training:
+  batch_size: 4
+  epochs: 2
+  lr: 1.0e-4
+  optimizer: adam
+  scheduler: none
+  loss_name: bce_dice
+  num_workers: 2
+  max_train_batches: 5
+  max_val_batches: 3
+  early_stopping:
+    enabled: false
+    patience: 3
+    monitor: val_dice
+    mode: max
+
+augmentation:
+  enabled: true
+  horizontal_flip: true
+  vertical_flip: true
+  rotate: true
+  color_jitter: false
+
+paths:
+  output_dir: /kaggle/working/outputs
+  checkpoint_dir: /kaggle/working/checkpoints
+

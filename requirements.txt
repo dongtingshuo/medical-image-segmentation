@@ -1,0 +1,13 @@
+torch
+torchvision
+opencv-python
+albumentations
+numpy
+matplotlib
+scikit-learn
+gradio
+PyYAML
+pytest
+pandas
+tqdm
+segmentation-models-pytorch

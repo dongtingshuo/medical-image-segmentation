@@ -1,0 +1,44 @@
+experiment_name: debug_local
+seed: 42
+device: auto
+mixed_precision: false
+
+data:
+  train_images_dir: data/images/train
+  train_masks_dir: data/masks/train
+  val_images_dir: data/images/val
+  val_masks_dir: data/masks/val
+  image_size: 128
+
+model:
+  model_name: unet
+  in_channels: 3
+  out_channels: 1
+
+training:
+  batch_size: 2
+  epochs: 2
+  lr: 1.0e-4
+  optimizer: adam
+  scheduler: none
+  loss_name: bce_dice
+  num_workers: 0
+  max_train_batches: 3
+  max_val_batches: 2
+  early_stopping:
+    enabled: false
+    patience: 3
+    monitor: val_dice
+    mode: max
+
+augmentation:
+  enabled: true
+  horizontal_flip: true
+  vertical_flip: false
+  rotate: true
+  color_jitter: false
+
+paths:
+  output_dir: outputs
+  checkpoint_dir: checkpoints
+
