@@ -62,6 +62,27 @@ def inspect_masks(pairs):
     return ratios, warnings, invalid_masks
 
 
+def inspect_shapes(pairs):
+    mismatches = []
+    for image_path, mask_path in pairs:
+        image = cv2.imread(str(image_path), cv2.IMREAD_COLOR)
+        mask = cv2.imread(str(mask_path), cv2.IMREAD_GRAYSCALE)
+        if image is None:
+            raise ValueError(f"Failed to read image: {image_path}")
+        if mask is None:
+            raise ValueError(f"Failed to read mask: {mask_path}")
+        if image.shape[:2] != mask.shape[:2]:
+            mismatches.append(
+                {
+                    "image": image_path.name,
+                    "mask": mask_path.name,
+                    "image_shape": image.shape[:2],
+                    "mask_shape": mask.shape[:2],
+                }
+            )
+    return mismatches
+
+
 def save_overlays(pairs, output_dir, sample_count=8, seed=42):
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -70,8 +91,6 @@ def save_overlays(pairs, output_dir, sample_count=8, seed=42):
     saved_paths = []
     for idx, (image_path, mask_path) in enumerate(selected):
         image, mask = read_image_and_mask(image_path, mask_path)
-        if image.shape[:2] != mask.shape[:2]:
-            mask = cv2.resize(mask, (image.shape[1], image.shape[0]), interpolation=cv2.INTER_NEAREST)
         overlay = make_overlay(image, mask > 127)
         canvas = np.concatenate([image, cv2.cvtColor(mask, cv2.COLOR_GRAY2RGB), overlay], axis=1)
         out_path = output_dir / f"dataset_overlay_{idx:02d}_{image_path.stem}.png"
@@ -102,6 +121,12 @@ def check_split(split_name, images_dir, masks_dir):
         raise ValueError(" ".join(message))
     if not pairs:
         raise ValueError(f"{split_name} has no matched image/mask pairs.")
+    shape_mismatches = inspect_shapes(pairs)
+    if shape_mismatches:
+        raise ValueError(
+            f"{split_name} image/mask size mismatch found. Examples: {shape_mismatches[:5]}. "
+            "Fix dataset dimensions before training."
+        )
     ratios, warnings, invalid_masks = inspect_masks(pairs)
     return {
         "split": split_name,
@@ -111,6 +136,7 @@ def check_split(split_name, images_dir, masks_dir):
         "ratios": ratios,
         "warnings": warnings,
         "invalid_masks": invalid_masks,
+        "shape_mismatches": shape_mismatches,
     }
 
 
@@ -118,6 +144,7 @@ def write_report(report_path, train_info, val_info, saved_paths):
     all_ratios = train_info["ratios"] + val_info["ratios"]
     warnings = train_info["warnings"] + val_info["warnings"]
     invalid_masks = train_info["invalid_masks"] + val_info["invalid_masks"]
+    shape_mismatches = train_info["shape_mismatches"] + val_info["shape_mismatches"]
     lines = [
         "# Dataset Check Report",
         "",
@@ -136,9 +163,12 @@ def write_report(report_path, train_info, val_info, saved_paths):
         "## Binary Mask Check",
         "",
         f"- Invalid binary masks: {len(invalid_masks)}",
+        f"- Image/mask size mismatches: {len(shape_mismatches)}",
     ]
     if invalid_masks:
         lines.append(f"- Examples: {invalid_masks[:20]}")
+    if shape_mismatches:
+        lines.append(f"- Size mismatch examples: {shape_mismatches[:10]}")
     lines.extend(["", "## Warnings", ""])
     if warnings:
         lines.extend([f"- {item}" for item in warnings[:50]])

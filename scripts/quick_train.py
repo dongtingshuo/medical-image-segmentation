@@ -11,6 +11,7 @@ from src.losses import get_loss
 from src.model_factory import get_model
 from src.trainer import train_model
 from src.utils import create_dirs, data_path, get_device, load_config, set_seed
+from src.visualization import save_sample_predictions
 
 
 def write_report(path, config, device, result):
@@ -92,6 +93,7 @@ def main():
     scheduler = build_scheduler(optimizer, config)
     criterion = get_loss(training.get("loss_name", "bce_dice"))
     result = train_model(model, train_loader, val_loader, criterion, optimizer, scheduler, device, config)
+    save_sample_predictions(model, val_loader, device, sanity_dir / "quick_train_predictions", max_samples=4)
     write_report(sanity_dir / "quick_train_report.md", config, device, result)
     print(f"Saved quick train report to: {sanity_dir / 'quick_train_report.md'}")
 

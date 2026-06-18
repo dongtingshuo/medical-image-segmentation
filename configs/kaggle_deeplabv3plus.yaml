@@ -2,6 +2,7 @@
 experiment_name: kaggle_deeplabv3plus_effb3
 seed: 42
 device: auto
+require_gpu: true
 mixed_precision: true
 data:
   train_images_dir: /kaggle/input/your-dataset/train/images
@@ -33,4 +34,3 @@ augmentation:
 paths:
   output_dir: /kaggle/working/outputs
   checkpoint_dir: /kaggle/working/checkpoints
-

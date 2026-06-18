@@ -21,11 +21,20 @@ def evaluate(model, dataloader, criterion, device):
         images = images.to(device)
         masks = masks.to(device)
         logits = model(images)
-        totals["loss"] += criterion(logits, masks).item()
-        totals["dice"] += dice_score(logits, masks).item()
-        totals["iou"] += iou_score(logits, masks).item()
-        totals["precision"] += precision_score(logits, masks).item()
-        totals["recall"] += recall_score(logits, masks).item()
+        loss = criterion(logits, masks)
+        if not torch.isfinite(loss).all():
+            raise FloatingPointError("Non-finite evaluation loss detected. Check checkpoint, data, and masks.")
+        batch_metrics = {
+            "loss": loss.item(),
+            "dice": dice_score(logits, masks).item(),
+            "iou": iou_score(logits, masks).item(),
+            "precision": precision_score(logits, masks).item(),
+            "recall": recall_score(logits, masks).item(),
+        }
+        for key, value in batch_metrics.items():
+            if not torch.isfinite(torch.tensor(value)):
+                raise FloatingPointError(f"Non-finite evaluation metric detected: {key}={value}")
+            totals[key] += value
         count += 1
     return {key: value / max(count, 1) for key, value in totals.items()}
 
@@ -75,4 +84,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

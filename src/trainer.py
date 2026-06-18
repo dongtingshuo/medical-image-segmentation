@@ -12,12 +12,21 @@ from src.visualization import plot_training_curves, save_sample_predictions
 
 
 def _metric_dict(logits, masks):
-    return {
+    metrics = {
         "dice": dice_score(logits, masks).item(),
         "iou": iou_score(logits, masks).item(),
         "precision": precision_score(logits, masks).item(),
         "recall": recall_score(logits, masks).item(),
     }
+    for name, value in metrics.items():
+        if not torch.isfinite(torch.tensor(value)):
+            raise FloatingPointError(f"Non-finite metric detected: {name}={value}")
+    return metrics
+
+
+def _ensure_finite_tensor(value, label):
+    if not torch.isfinite(value).all():
+        raise FloatingPointError(f"Non-finite {label} detected. Stop training and inspect data, loss, lr, and masks.")
 
 
 def train_one_epoch(model, dataloader, criterion, optimizer, device, scaler=None, use_amp=False, max_batches=None):
@@ -35,6 +44,7 @@ def train_one_epoch(model, dataloader, criterion, optimizer, device, scaler=None
         with torch.cuda.amp.autocast(enabled=use_amp):
             logits = model(images)
             loss = criterion(logits, masks)
+        _ensure_finite_tensor(loss, "training loss")
         if scaler is not None and use_amp:
             scaler.scale(loss).backward()
             scaler.step(optimizer)
@@ -65,6 +75,7 @@ def validate_one_epoch(model, dataloader, criterion, device, max_batches=None):
         masks = masks.to(device, non_blocking=True)
         logits = model(images)
         loss = criterion(logits, masks)
+        _ensure_finite_tensor(loss, "validation loss")
         metrics = _metric_dict(logits, masks)
         totals["loss"] += loss.item()
         for key, value in metrics.items():
@@ -191,7 +202,12 @@ def train_model(
         }
         save_checkpoint(state, last_path)
 
-        monitored_value = val_metrics[monitor.replace("val_", "")]
+        monitor_key = monitor.replace("val_", "")
+        if monitor_key not in val_metrics:
+            raise KeyError(f"Unsupported early stopping monitor `{monitor}`. Available: {sorted(val_metrics)}")
+        monitored_value = val_metrics[monitor_key]
+        if not torch.isfinite(torch.tensor(monitored_value)):
+            raise FloatingPointError(f"Non-finite monitored metric detected: {monitor}={monitored_value}")
         if _is_improved(monitored_value, best_score, mode):
             best_score = monitored_value
             bad_epochs = 0
@@ -234,4 +250,3 @@ def train_model(
 
 
 fit = train_model
-

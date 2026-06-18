@@ -49,7 +49,7 @@ def main():
 
     config = load_config(args.config)
     set_seed(config.get("seed", 42))
-    device = get_device(config.get("device", "auto"))
+    device = get_device(config.get("device", "auto"), require_cuda_runtime=bool(config.get("require_gpu", False)))
     paths = config.get("paths", {})
     create_dirs(paths.get("output_dir", "outputs"), paths.get("checkpoint_dir", "checkpoints"))
 
@@ -94,4 +94,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

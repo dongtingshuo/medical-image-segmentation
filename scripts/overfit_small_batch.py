@@ -114,6 +114,8 @@ def main():
         with torch.cuda.amp.autocast(enabled=use_amp):
             logits = model(images)
             loss = criterion(logits, masks)
+        if not torch.isfinite(loss).all():
+            raise FloatingPointError("Non-finite overfit loss detected. Check data, masks, model, loss, and lr.")
         if scaler.is_enabled():
             scaler.scale(loss).backward()
             scaler.step(optimizer)
@@ -125,6 +127,8 @@ def main():
             logits = model(images)
             dice = dice_score(logits, masks).item()
             iou = iou_score(logits, masks).item()
+        if not torch.isfinite(torch.tensor([dice, iou])).all():
+            raise FloatingPointError(f"Non-finite overfit metrics detected: dice={dice}, iou={iou}")
         history["epoch"].append(epoch)
         history["loss"].append(loss.item())
         history["dice"].append(dice)

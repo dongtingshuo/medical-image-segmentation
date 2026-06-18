@@ -20,6 +20,13 @@ def test_attention_unet_output_shape():
     assert y.shape == (2, 1, 64, 64)
 
 
+def test_attention_unet_handles_non_multiple_of_16_shape():
+    model = AttentionUNet(in_channels=3, out_channels=1, base_channels=8)
+    x = torch.randn(1, 3, 70, 73)
+    y = model(x)
+    assert y.shape == (1, 1, 70, 73)
+
+
 def test_third_party_model_factory_skip_if_missing():
     pytest.importorskip("segmentation_models_pytorch")
     model = get_model(
@@ -32,4 +39,3 @@ def test_third_party_model_factory_skip_if_missing():
     x = torch.randn(1, 3, 64, 64)
     y = model(x)
     assert y.shape == (1, 1, 64, 64)
-

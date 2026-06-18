@@ -56,30 +56,55 @@ def get_val_transforms(config):
 
 
 class SkinLesionDataset(Dataset):
-    """Skin lesion image/mask dataset with filename-stem matching."""
+    """Skin lesion image/mask dataset with strict filename-stem matching."""
 
-    def __init__(self, images_dir, masks_dir, transform=None):
+    def __init__(self, images_dir, masks_dir, transform=None, strict=True):
         self.images_dir = Path(images_dir)
         self.masks_dir = Path(masks_dir)
         self.transform = transform
+        self.strict = strict
 
         if not self.images_dir.exists():
             raise FileNotFoundError(f"Images directory does not exist: {self.images_dir}")
         if not self.masks_dir.exists():
             raise FileNotFoundError(f"Masks directory does not exist: {self.masks_dir}")
 
+        image_paths = [
+            path
+            for path in sorted(self.images_dir.iterdir())
+            if path.is_file() and path.suffix.lower() in IMAGE_EXTENSIONS
+        ]
+        mask_paths = [
+            path
+            for path in sorted(self.masks_dir.iterdir())
+            if path.is_file() and path.suffix.lower() in IMAGE_EXTENSIONS
+        ]
         mask_map = {
             path.stem: path
-            for path in self.masks_dir.iterdir()
-            if path.is_file() and path.suffix.lower() in IMAGE_EXTENSIONS
+            for path in mask_paths
         }
+        image_stems = {path.stem for path in image_paths}
+        missing_masks = []
         pairs = []
-        for image_path in sorted(self.images_dir.iterdir()):
-            if not image_path.is_file() or image_path.suffix.lower() not in IMAGE_EXTENSIONS:
-                continue
+        for image_path in image_paths:
             mask_path = mask_map.get(image_path.stem)
             if mask_path is not None:
                 pairs.append((image_path, mask_path))
+            else:
+                missing_masks.append(image_path.name)
+
+        extra_masks = sorted(set(mask_map) - image_stems)
+        if self.strict and (len(image_paths) != len(mask_paths) or missing_masks or extra_masks):
+            details = [
+                f"Image/mask files do not match exactly. images={len(image_paths)}, masks={len(mask_paths)}.",
+                f"images_dir={self.images_dir}",
+                f"masks_dir={self.masks_dir}",
+            ]
+            if missing_masks:
+                details.append(f"Missing masks for images: {missing_masks[:10]}")
+            if extra_masks:
+                details.append(f"Extra masks without images: {extra_masks[:10]}")
+            raise ValueError(" ".join(details))
 
         if not pairs:
             raise ValueError(
@@ -101,6 +126,11 @@ class SkinLesionDataset(Dataset):
         mask = cv2.imread(str(mask_path), cv2.IMREAD_GRAYSCALE)
         if mask is None:
             raise ValueError(f"Failed to read mask: {mask_path}")
+        if image.shape[:2] != mask.shape[:2]:
+            raise ValueError(
+                f"Image and mask size mismatch for `{image_path.name}` and `{mask_path.name}`: "
+                f"image={image.shape[:2]}, mask={mask.shape[:2]}. Fix the dataset before training."
+            )
         mask = (mask > 127).astype(np.float32)
 
         if self.transform is not None:
@@ -113,4 +143,3 @@ class SkinLesionDataset(Dataset):
         image = torch.from_numpy(np.transpose(image, (2, 0, 1))).float()
         mask = torch.from_numpy(mask).float().unsqueeze(0)
         return image, mask
-

@@ -72,6 +72,12 @@ class AttentionUNet(nn.Module):
         self.dec1 = ConvBlock(c * 2, c)
         self.out = nn.Conv2d(c, out_channels, kernel_size=1)
 
+    @staticmethod
+    def _align_to_skip(x, skip):
+        if x.shape[2:] != skip.shape[2:]:
+            x = F.interpolate(x, size=skip.shape[2:], mode="bilinear", align_corners=False)
+        return x
+
     def forward(self, x):
         e1 = self.enc1(x)
         e2 = self.enc2(self.pool(e1))
@@ -80,19 +86,22 @@ class AttentionUNet(nn.Module):
         center = self.center(self.pool(e4))
 
         d4 = self.up4(center)
+        d4 = self._align_to_skip(d4, e4)
         e4 = self.att4(d4, e4)
         d4 = self.dec4(torch.cat([d4, e4], dim=1))
 
         d3 = self.up3(d4)
+        d3 = self._align_to_skip(d3, e3)
         e3 = self.att3(d3, e3)
         d3 = self.dec3(torch.cat([d3, e3], dim=1))
 
         d2 = self.up2(d3)
+        d2 = self._align_to_skip(d2, e2)
         e2 = self.att2(d2, e2)
         d2 = self.dec2(torch.cat([d2, e2], dim=1))
 
         d1 = self.up1(d2)
+        d1 = self._align_to_skip(d1, e1)
         e1 = self.att1(d1, e1)
         d1 = self.dec1(torch.cat([d1, e1], dim=1))
         return self.out(d1)
-

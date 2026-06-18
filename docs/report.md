@@ -1,148 +1,299 @@
-# 基于 U-Net 改进模型的皮肤病灶图像分割系统
+# Technical Report: Skin Lesion Segmentation with Improved U-Net Models
 
-## 1. 项目背景
+# 技术报告：基于 U-Net 改进模型的皮肤病灶图像分割系统
 
-皮肤病灶图像分割是医学图像分析中的重要任务。其目标是在皮肤镜图像中自动定位病灶区域，并生成像素级二值 mask。准确的病灶分割结果可以为病灶面积统计、边界形态分析、后续良恶性分类和辅助诊断提供基础。
+## 1. Background / 背景
 
-U-Net 及其改进模型在医学图像分割中应用广泛，原因在于其编码器-解码器结构能够同时利用深层语义信息和浅层空间细节。本项目以 U-Net 为基础，进一步实现 Attention U-Net，并通过 `segmentation-models-pytorch` 支持 U-Net++、DeepLabV3+ 等高性能结构。
+Skin lesion segmentation is a pixel-level medical image analysis task. The goal is to separate lesion regions from surrounding skin in dermoscopic images. Reliable segmentation supports downstream measurements such as lesion area, boundary morphology, and model-assisted image analysis.
 
-## 2. 项目目标
+皮肤病灶分割是医学图像分析中的像素级任务，目标是在皮肤镜图像中区分病灶区域与周围皮肤。稳定的分割结果可用于病灶面积统计、边界形态分析以及后续图像分析流程。
 
-本项目目标是实现一个完整的皮肤病灶图像分割系统，包括数据集读取、数据预处理、数据增强、模型训练、模型评估、结果可视化、Gradio Web Demo 和 Kaggle 云训练流程。项目训练主要在 Kaggle GPU 上完成，本地支持 CPU/CUDA 自动选择，用于预测、评估和 Demo 展示。
+U-Net is widely used in medical image segmentation because its encoder-decoder architecture combines semantic representation with spatial detail recovery. This project implements a full segmentation system around U-Net and improved U-Net variants.
 
-## 3. 数据集说明
+U-Net 因其 encoder-decoder 结构能够结合语义信息和空间细节，在医学图像分割中被广泛使用。本项目围绕 U-Net 及其改进结构构建完整分割系统。
 
-数据集由皮肤病灶图像和对应二值 mask 组成。图像通常为 RGB 皮肤镜图像，mask 为单通道二值图，其中前景表示病灶区域，背景表示非病灶区域。项目要求 image 和 mask 以相同文件名 stem 匹配，例如 `ISIC_001.jpg` 对应 `ISIC_001.png`。
+## 2. Task Definition / 任务定义
 
-实际实验数据集路径通过 YAML 配置文件传入，不在源代码中写死本地路径或 Kaggle 路径。
+The task is binary semantic segmentation. Given an RGB image `x`, the model predicts a one-channel logit map `y`. During inference, sigmoid converts logits into probabilities, and thresholding converts probabilities into a binary mask.
 
-## 4. 方法原理
+本任务为二分类语义分割。输入为 RGB 图像 `x`，模型输出单通道 logit 图 `y`。推理时通过 sigmoid 将 logits 转换为概率图，再通过阈值生成二值 mask。
 
-### 4.1 二分类图像分割任务定义
+## 3. System Architecture / 系统架构
 
-二分类图像分割的输入为一张 RGB 图像，输出为与输入空间尺寸对应的单通道预测图。模型输出 logits，训练时使用适合二分类任务的 loss，推理时对 logits 执行 sigmoid 得到概率图，并通过阈值生成二值 mask。
+The system consists of the following modules:
 
-### 4.2 U-Net 网络结构
+系统由以下模块组成：
 
-U-Net 由编码器、解码器和跳跃连接组成。编码器逐步下采样以提取高层语义特征，解码器逐步上采样恢复空间分辨率。跳跃连接将编码器中的浅层特征与解码器特征拼接，从而保留边界和纹理等细节信息。
+- Dataset loading: strict image/mask stem matching, binary mask conversion, synchronized augmentation.
+- Model factory: U-Net, Attention U-Net, U-Net++, DeepLabV3+, FPN.
+- Training: mixed precision, scheduler, early stopping, best/last checkpoints.
+- Evaluation: Dice, IoU, Precision, Recall, validation loss.
+- Visualization: training curves, prediction masks, overlays, lesion area ratio.
+- Kaggle workflow: GPU training and output export.
+- Local workflow: CPU/CUDA inference and Gradio Demo.
 
-### 4.3 Encoder-Decoder
+```mermaid
+flowchart TD
+    A["Dataset and YAML Config"] --> B["Transforms"]
+    B --> C["Model Factory"]
+    C --> D["Trainer"]
+    D --> E["Metrics CSV"]
+    D --> F["Checkpoints"]
+    D --> G["Curves and Samples"]
+    F --> H["Evaluation"]
+    F --> I["Prediction"]
+    F --> J["Gradio Demo"]
+```
 
-Encoder-Decoder 结构适合分割任务。Encoder 通过卷积和池化扩大感受野，Decoder 通过上采样恢复像素级预测。该结构能够在全局语义理解和局部定位之间取得平衡。
+## 4. Models / 模型
 
-### 4.4 Skip Connection
+### 4.1 U-Net Baseline / U-Net 基线
 
-Skip Connection 是 U-Net 的关键设计。它将编码器同尺度特征直接传递给解码器，有助于恢复病灶边界细节，减少上采样过程中空间信息丢失。
+The baseline model is a handwritten U-Net with double convolution blocks, downsampling, upsampling, skip connections, and a one-channel output head. The model outputs logits and does not apply sigmoid internally.
 
-### 4.5 Attention U-Net
+基线模型为手写 U-Net，包含 DoubleConv、下采样、上采样、skip connection 和单通道输出层。模型输出 logits，内部不执行 sigmoid。
 
-Attention U-Net 在跳跃连接处引入注意力门控机制。该机制利用解码器中的语义信息对编码器特征进行筛选，使模型更关注与病灶相关的区域，减少背景干扰。
+### 4.2 Attention U-Net / Attention U-Net
 
-### 4.6 U-Net++ / DeepLabV3+
+Attention U-Net adds attention gates to skip connections. These gates suppress less relevant encoder features and emphasize lesion-related regions.
 
-U-Net++ 通过嵌套跳跃连接和更密集的特征融合改善编码器与解码器之间的语义差距。DeepLabV3+ 利用空洞卷积和多尺度上下文建模能力，适合处理尺度变化明显的分割任务。本项目通过预训练 encoder 提升模型特征提取能力，用于追求更高 Dice 和 IoU。
+Attention U-Net 在 skip connection 中加入注意力门控，用于抑制无关背景特征并突出病灶相关区域。
 
-### 4.7 Loss 函数
+### 4.3 U-Net++ and DeepLabV3+ / U-Net++ 与 DeepLabV3+
 
-BCEWithLogitsLoss 适合像素级二分类任务。Dice Loss 直接优化分割重叠程度，能够缓解前景和背景类别不平衡问题。BCE + Dice Loss 综合像素级分类误差和区域重叠误差，是本项目默认推荐 loss。
+U-Net++ uses nested skip connections to reduce the semantic gap between encoder and decoder features. DeepLabV3+ uses atrous convolution and multi-scale context modeling. This project uses `segmentation-models-pytorch` to support these models with ImageNet-pretrained encoders.
 
-## 5. 系统设计
+U-Net++ 使用嵌套 skip connection 缩小 encoder 与 decoder 特征之间的语义差距。DeepLabV3+ 通过空洞卷积和多尺度上下文建模提升分割能力。本项目通过 `segmentation-models-pytorch` 支持这些结构及 ImageNet 预训练 encoder。
 
-### 5.1 数据加载模块
+## 5. Training Pipeline / 训练流程
 
-数据加载模块负责读取图像和 mask，自动按文件名匹配，转换 mask 为单通道二值形式，并使用 Albumentations 对图像和 mask 进行同步增强。
+The training pipeline includes:
 
-### 5.2 模型模块
+训练流程包括：
 
-模型模块包含手写 U-Net、Attention U-Net 和模型工厂。模型工厂统一创建 U-Net、Attention U-Net、U-Net++、DeepLabV3+ 和 FPN，并支持 ImageNet 预训练 encoder。
+1. Dataset check: verify paths, image/mask matching, binary masks, foreground ratios, overlays.
+2. Small-batch overfit: verify data alignment, model, loss, and optimizer.
+3. Quick train: verify the full training pipeline before long runs.
+4. Full training: train baseline and high-accuracy configurations on Kaggle GPU.
+5. Evaluation and export: save metrics, curves, samples, checkpoints.
 
-### 5.3 训练模块
+## 6. Experimental Setup / 实验设置
 
-训练模块负责训练循环、验证循环、mixed precision、scheduler、early stopping、best/last checkpoint 保存、训练曲线保存和预测样例保存。
+Training was completed in a Kaggle GPU environment. The local environment supports CPU/CUDA automatic selection for evaluation, prediction, and Gradio Demo.
 
-### 5.4 评估模块
+训练在 Kaggle GPU 环境完成。本地环境支持 CPU/CUDA 自动选择，用于评估、预测和 Gradio Demo。
 
-评估模块加载指定 checkpoint，在验证集或测试集上计算 Dice、IoU、Precision、Recall 和平均 loss，并将结果保存为 CSV 文件。
+### 6.1 Dataset Check / 数据检查
 
-### 5.5 可视化模块
+The high-accuracy run saved the following sanity check summary:
 
-可视化模块支持保存原图、真实 mask、预测 mask 和叠加图，并计算预测病灶面积比例。训练结束后会保存曲线图和样例预测图。
+高精度训练保存的数据检查摘要如下：
 
-### 5.6 Kaggle 训练模块
+```text
+Train images: 2000
+Train masks: 2000
+Train matched pairs: 2000
+Val images: 150
+Val masks: 150
+Val matched pairs: 150
+Mean foreground ratio: 0.192484
+Min foreground ratio: 0.002977
+Max foreground ratio: 0.958930
+Invalid binary masks: 0
+Image/mask size mismatches: 0
+All-black/all-white masks: none reported
+```
 
-项目提供 Kaggle 配置文件和 Kaggle Notebook。Kaggle 训练使用 GPU，输出保存到 `/kaggle/working/outputs` 和 `/kaggle/working/checkpoints`。Notebook 会动态生成 runtime config，避免将 Kaggle 数据路径写入源代码。
+Report path:
 
-### 5.7 本地 Gradio Demo 模块
+报告路径：
 
-本地 Demo 支持上传单张皮肤病灶图像、选择模型和 checkpoint，并输出预测 mask、叠加图、病灶面积比例和推理时间。本地无 GPU 时自动使用 CPU。
+```text
+docs/assets/sanity_check/dataset_check_report.md
+```
 
-## 6. 训练前检查流程
+### 6.2 Model Configurations / 模型配置
 
-正式长时间训练前，项目要求执行 dataset check、mask 可视化、small batch overfit 和 quick train。
+| Experiment | Model | Encoder | Image Size | Batch Size | Epochs | Optimizer | Scheduler | Loss | Mixed Precision |
+| --- | --- | --- | ---: | ---: | ---: | --- | --- | --- | --- |
+| U-Net baseline | U-Net | None | 256 | 8 | 30 | Adam | ReduceLROnPlateau | BCE + Dice | Yes |
+| High accuracy model | U-Net++ | EfficientNet-B3, ImageNet | 384 | 8 | 50 | AdamW | CosineAnnealingLR | BCE + Dice | Yes |
 
-### 6.1 数据检查
+The high-accuracy run used early stopping with patience 10 and monitored `val_dice`.
 
-`scripts/check_dataset.py` 检查训练集和验证集路径是否存在、image/mask 数量是否一致、文件名是否能正确匹配、mask 是否为有效二值 mask，并统计前景像素比例。
+高精度训练启用 early stopping，patience 为 10，监控指标为 `val_dice`。
 
-### 6.2 Mask 可视化
+## 7. Metrics / 评价指标
 
-数据检查脚本会随机保存 8 张 image + mask 叠加图到 `outputs/sanity_check/`。如果叠加图中 mask 与病灶区域明显不对齐，则不能开始正式训练。
+- Dice measures overlap between predicted and ground-truth masks.
+- IoU measures intersection-over-union.
+- Precision measures correctness among predicted lesion pixels.
+- Recall measures recovery of ground-truth lesion pixels.
 
-### 6.3 Small Batch Overfit
+指标定义：
 
-`scripts/overfit_small_batch.py` 从训练集中取少量样本，训练 50 到 100 epochs。若模型、loss、数据读取和 mask 对齐正常，loss 应明显下降，Dice 和 IoU 应明显上升。
+- Dice 衡量预测 mask 与真实 mask 的重叠程度。
+- IoU 衡量交并比。
+- Precision 衡量预测为病灶的像素中有多少是正确的。
+- Recall 衡量真实病灶像素中有多少被模型找回。
 
-### 6.4 Quick Train
+## 8. Results / 实验结果
 
-`scripts/quick_train.py` 使用完整训练集进行 1 到 3 epochs 的短训练，确认完整训练流程、验证流程、checkpoint 保存、曲线保存和样例预测都能正常运行。
+Results are read from:
 
-## 7. 实验设计
+结果读取自：
 
-### 7.1 Kaggle GPU 训练环境
+```text
+kaggle_outputs/baseline_unet/outputs/experiment_results.csv
+kaggle_outputs/high_accuracy/outputs/experiment_results.csv
+```
 
-正式训练主要在 Kaggle GPU 环境中完成。Kaggle 配置使用 `/kaggle/input/` 读取数据，训练结果保存到 `/kaggle/working/`。
+Full Kaggle outputs are kept outside Git tracking. Representative documentation assets are copied to `docs/assets/`.
 
-### 7.2 本地 CPU/CUDA 推理环境
+完整 Kaggle 输出不纳入 Git 跟踪；报告中使用的代表性图片已复制到 `docs/assets/`。
 
-本地环境用于预测、评估和 Gradio Demo。设备选择为 `auto` 时，若 CUDA 可用则使用 CUDA，否则使用 CPU。
+| Experiment | Model | Encoder | Best Epoch | Best Val Loss | Dice | IoU | Precision | Recall | Training Time | Inference Time |
+| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- | --- |
+| U-Net baseline | U-Net | None | 27 | 0.186221 | 0.839209 | 0.749852 | 0.904178 | 0.836919 | 11m 54s | Not available |
+| High accuracy model | U-Net++ | EfficientNet-B3 | 4 | 0.153719 | 0.872120 | 0.792033 | 0.905242 | 0.881161 | 18m 26s | Not available |
 
-### 7.3 模型对比实验
+Metric differences:
 
-计划比较手写 U-Net、Attention U-Net、U-Net++ 和 DeepLabV3+ 在 Dice、IoU、Precision 和 Recall 上的表现。
+指标差异：
 
-### 7.4 Loss 对比实验
+| Metric | U-Net Baseline | High Accuracy | Difference |
+| --- | ---: | ---: | ---: |
+| Dice | 0.839209 | 0.872120 | +0.032911 |
+| IoU | 0.749852 | 0.792033 | +0.042181 |
+| Precision | 0.904178 | 0.905242 | +0.001064 |
+| Recall | 0.836919 | 0.881161 | +0.044241 |
 
-计划比较 BCE、Dice Loss 和 BCE + Dice Loss 对训练稳定性和分割指标的影响。
+Training curves:
 
-### 7.5 数据增强对比实验
+训练曲线：
 
-计划比较开启数据增强与关闭数据增强时模型泛化能力的差异。
+```text
+docs/assets/results/baseline_unet_training_curves.png
+docs/assets/results/high_accuracy_training_curves.png
+```
 
-### 7.6 输入尺寸对比实验
+![Baseline U-Net training curves](assets/results/baseline_unet_training_curves.png)
 
-计划比较 256 和 384 输入尺寸对细节恢复、显存占用和训练速度的影响。
+![High accuracy training curves](assets/results/high_accuracy_training_curves.png)
 
-## 8. 实验结果
+Prediction samples:
 
-当前不编造具体实验数值。真实训练完成后，应将 `outputs/experiment_results.csv` 中结果填入下表。
+预测样例：
 
-| 实验名称 | 模型 | Loss | 输入尺寸 | Dice | IoU | Precision | Recall |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| 待填入实验结果 | U-Net | BCE + Dice | 256 | 待填入实验结果 | 待填入实验结果 | 待填入实验结果 | 待填入实验结果 |
-| 待填入实验结果 | Attention U-Net | BCE + Dice | 256 | 待填入实验结果 | 待填入实验结果 | 待填入实验结果 | 待填入实验结果 |
-| 待填入实验结果 | U-Net++ | BCE + Dice | 384 | 待填入实验结果 | 待填入实验结果 | 待填入实验结果 | 待填入实验结果 |
-| 待填入实验结果 | DeepLabV3+ | BCE + Dice | 384 | 待填入实验结果 | 待填入实验结果 | 待填入实验结果 | 待填入实验结果 |
+```text
+docs/assets/samples/baseline_unet/
+docs/assets/samples/high_accuracy/
+```
 
-## 9. 结果分析
+![Baseline U-Net prediction sample](assets/samples/baseline_unet/sample_000_overlay.png)
 
-待真实训练完成后，应从以下角度分析结果：不同模型的 Dice 和 IoU 差异；Attention 机制是否改善边界定位；预训练 encoder 是否提升收敛速度和最终指标；不同 loss 对前景较小样本的影响；失败案例中是否存在边界模糊、低对比度或标注噪声。
+![High accuracy prediction sample](assets/samples/high_accuracy/sample_000_overlay.png)
 
-## 10. Gradio 系统展示
+## 9. Analysis / 结果分析
 
-Gradio Demo 支持用户上传单张图像并选择 checkpoint 进行预测。系统输出原图、预测 mask、叠加图、病灶面积比例、推理时间和当前设备。训练完成后，可将 Kaggle 下载的 `best_model.pth` 放入本地 `checkpoints/` 目录，并运行 `python app.py` 展示系统。
+### 9.1 Baseline U-Net / Baseline U-Net 表现
 
-## 11. 总结与展望
+The baseline U-Net reached Dice 0.839209 and IoU 0.749852. Its validation metrics improved steadily through the first half of training and reached the best checkpoint at epoch 27. The training loss continued to decrease until epoch 30, while validation loss and metrics fluctuated after the best epoch. This indicates mild overfitting but no severe instability.
 
-本项目实现了从数据检查、模型训练、指标评估到可视化 Demo 的完整医学图像分割工程。项目既包含可解释的手写 U-Net，也支持基于预训练 encoder 的高性能模型，适合作为本科深度学习项目展示。
+U-Net baseline 达到 Dice 0.839209、IoU 0.749852。验证指标在训练前半段持续提升，并在 epoch 27 达到最佳 checkpoint。训练 loss 持续下降到 epoch 30，而验证 loss 和指标在最佳 epoch 后略有波动，说明存在轻微过拟合，但没有明显训练不稳定。
 
-后续可进一步加入交叉验证、独立测试集评估、更多 encoder 对比、ONNX 导出、批量预测和不确定性可视化，以提升系统完整性和工程实用性。
+### 9.2 High Accuracy Model / 高精度模型表现
+
+The high-accuracy model reached Dice 0.872120 and IoU 0.792033. It improved the baseline by +0.032911 Dice and +0.042181 IoU. Recall improved by +0.044241, indicating better recovery of lesion pixels. The best checkpoint appeared early at epoch 4, and early stopping ended training at epoch 14.
+
+高精度模型达到 Dice 0.872120、IoU 0.792033，相比 baseline 分别提升 +0.032911 和 +0.042181。Recall 提升 +0.044241，说明模型找回病灶像素的能力更强。最佳 checkpoint 出现在 epoch 4，early stopping 在 epoch 14 结束训练。
+
+### 9.3 Overfitting and Underfitting / 过拟合与欠拟合
+
+Neither model shows underfitting. The high-accuracy model achieved strong validation performance from the first epoch due to the pretrained EfficientNet-B3 encoder. Both models show mild overfitting: training loss keeps decreasing while validation metrics plateau or fluctuate.
+
+两个模型均不存在明显欠拟合。高精度模型由于使用预训练 EfficientNet-B3 encoder，从第一个 epoch 起就获得较高验证指标。两个模型均有轻微过拟合：训练 loss 继续下降，但验证指标进入平台期或出现波动。
+
+### 9.4 Prediction Quality and Failure Cases / 预测质量与失败案例
+
+The downloaded prediction samples do not show all-black or all-white masks. Predicted regions are concentrated around lesions, and no large false-positive regions are visible in the inspected overlays. The high-accuracy samples produce smoother and more aligned masks than the baseline samples.
+
+已下载预测样例没有出现全黑或全白 mask。预测区域集中在病灶附近，检查到的 overlay 中没有明显大面积误检。高精度模型样例比 baseline 更贴合真实区域，边界更平滑。
+
+Sample-level IoU from four downloaded samples:
+
+四张下载样例的样例级 IoU：
+
+| Sample | Baseline IoU | High Accuracy IoU |
+| --- | ---: | ---: |
+| 0 | 0.896215 | 0.933358 |
+| 1 | 0.887648 | 0.942724 |
+| 2 | 0.913248 | 0.947615 |
+| 3 | 0.738205 | 0.839550 |
+
+Potential failure cases remain possible for very small lesions, low-contrast lesions, hair occlusion, color artifacts, and annotation noise. Current outputs do not include a separate curated failure-case set.
+
+潜在失败场景包括极小病灶、低对比度病灶、毛发遮挡、颜色伪影和标注噪声。目前输出中没有单独整理的失败案例集合。
+
+### 9.5 Improvement Directions / 改进方向
+
+- Learning rate: try `5e-5` for the high-accuracy model to reduce validation fluctuation.
+- Batch size: keep 8 when memory allows; use 4 if GPU memory is limited.
+- Image size: keep 384 as the current default; test 448 only if memory permits.
+- Encoder: compare EfficientNet-B4, ResNet50, and ConvNeXt variants.
+- Loss: evaluate Focal + Dice for small-lesion recall.
+- Augmentation: add moderate color and geometric augmentation without distorting lesion appearance.
+- Epochs: keep early stopping; 20-30 maximum epochs may be enough for the high-accuracy model.
+
+## 10. Deployment / 部署与本地运行
+
+The final default inference files are:
+
+最终默认推理文件：
+
+```text
+Checkpoint: checkpoints/best_model.pth
+Config: configs/final_model.yaml
+```
+
+Local prediction:
+
+本地预测：
+
+```bash
+python predict.py --config configs/final_model.yaml --checkpoint checkpoints/best_model.pth --image path/to/image.jpg
+```
+
+Gradio Demo:
+
+Gradio 演示：
+
+```bash
+python app.py
+```
+
+The local runtime supports CPU/CUDA automatic selection. The high-accuracy model requires `segmentation-models-pytorch`.
+
+本地运行支持 CPU/CUDA 自动选择。高精度模型需要安装 `segmentation-models-pytorch`。
+
+## 11. Limitations and Future Work / 局限性与后续工作
+
+Limitations:
+
+局限性：
+
+- Inference time was not persisted in the Kaggle output files.
+- Evaluation is based on the available Kaggle validation split.
+- No independent external test set is included in the current results.
+- The current overlay visualization displays predicted masks; true masks are saved separately.
+
+Future work:
+
+后续工作：
+
+- Add independent test set evaluation.
+- Add cross-validation and confidence intervals.
+- Compare more pretrained encoders.
+- Add post-processing for boundary refinement and small false-positive filtering.
+- Export ONNX or TorchScript models for deployment.
+- Add batch prediction and structured report export.

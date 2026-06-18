@@ -1,0 +1,9 @@
+albumentations
+gradio
+opencv-python-headless
+PyYAML
+segmentation-models-pytorch
+scikit-learn
+matplotlib
+tqdm
+pytest

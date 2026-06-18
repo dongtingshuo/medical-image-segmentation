@@ -39,7 +39,8 @@ class FocalLoss(nn.Module):
     def forward(self, logits, targets):
         bce = F.binary_cross_entropy_with_logits(logits, targets, reduction="none")
         pt = torch.exp(-bce)
-        loss = self.alpha * (1.0 - pt) ** self.gamma * bce
+        alpha_t = self.alpha * targets + (1.0 - self.alpha) * (1.0 - targets)
+        loss = alpha_t * (1.0 - pt) ** self.gamma * bce
         return loss.mean()
 
 
@@ -66,4 +67,3 @@ def get_loss(loss_name):
     if name == "focal_dice":
         return FocalDiceLoss()
     raise ValueError(f"Unsupported loss_name: {loss_name}")
-

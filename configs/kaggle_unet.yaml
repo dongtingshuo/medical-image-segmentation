@@ -2,6 +2,7 @@
 experiment_name: kaggle_unet
 seed: 42
 device: auto
+require_gpu: true
 mixed_precision: true
 
 data:
@@ -40,4 +41,3 @@ augmentation:
 paths:
   output_dir: /kaggle/working/outputs
   checkpoint_dir: /kaggle/working/checkpoints
-
