@@ -347,3 +347,9 @@ checkpoints/best_model.pth
 - Add post-processing options for boundary smoothing or small false-positive removal.
 - Export ONNX or TorchScript models for deployment.
 - Add batch prediction and structured report export.
+
+## License / 许可证
+
+This project is released under the MIT License. See [LICENSE](LICENSE) for details.
+
+本项目基于 MIT License 开源，详情见 [LICENSE](LICENSE)。
