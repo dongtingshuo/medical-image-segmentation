@@ -9,11 +9,15 @@ data:
   val_masks_dir: data/masks/val
   image_size: 384
 model:
+  name: deeplabv3plus
   model_name: deeplabv3plus
+  encoder: efficientnet-b3
   in_channels: 3
   out_channels: 1
   encoder_name: efficientnet-b3
   encoder_weights: imagenet
+loss:
+  name: bce_dice
 training:
   batch_size: 4
   epochs: 30
@@ -32,4 +36,3 @@ augmentation:
 paths:
   output_dir: outputs
   checkpoint_dir: checkpoints
-

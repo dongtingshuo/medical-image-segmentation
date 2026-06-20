@@ -11,9 +11,14 @@ data:
   image_size: 256
 
 model:
+  name: attention_unet
   model_name: attention_unet
+  encoder: null
   in_channels: 3
   out_channels: 1
+
+loss:
+  name: bce_dice
 
 training:
   batch_size: 8
@@ -39,4 +44,3 @@ augmentation:
 paths:
   output_dir: outputs
   checkpoint_dir: checkpoints
-

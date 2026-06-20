@@ -32,9 +32,14 @@ Config: configs/final_model.yaml
 - Kaggle GPU training workflow / Kaggle GPU 训练流程
 - CPU/CUDA automatic local inference / 本地 CPU/CUDA 自动选择
 - Dice, IoU, Precision, Recall evaluation / Dice、IoU、Precision、Recall 评估
+- Model comparison and loss comparison / 模型对比与损失函数对比
 - Prediction visualization with masks and overlays / mask 与叠加图可视化
+- Overlay visualization and false-positive/false-negative maps / 叠加可视化与误检、漏检图
+- Segmentation error analysis / 分割错误分析
+- Lightweight toy segmentation demo / 轻量分割演示
 - Gradio Web Demo / Gradio Web 演示
 - Training sanity checks / 训练前质量检查
+- Medical disclaimer for non-clinical use / 非临床用途医学免责声明
 
 ## Project Structure / 项目结构
 
@@ -52,6 +57,19 @@ evaluate.py              Evaluation entry point
 predict.py               Single-image prediction
 app.py                   Gradio Web Demo
 ```
+
+## Documentation / 文档
+
+English:
+The main project documents describe training, evaluation, result interpretation, and lightweight reproducible demos.
+
+中文：
+主要文档说明训练、评估、结果解释和轻量可复现实验 demo。
+
+- [docs/report.md](docs/report.md)
+- [docs/EXPERIMENT_REPORT.md](docs/EXPERIMENT_REPORT.md)
+- [FINAL_GUIDE.md](FINAL_GUIDE.md)
+- [examples/toy_segmentation_demo/README.md](examples/toy_segmentation_demo/README.md)
 
 ## System Architecture / 系统架构
 
@@ -100,6 +118,46 @@ Run tests:
 
 ```bash
 pytest tests
+```
+
+## Quick Demo / 快速演示
+
+English:
+The quick demo uses synthetic toy data and runs on CPU. It validates the experiment workflow without downloading large datasets or model weights.
+
+中文：
+快速演示使用合成 toy 数据，可在 CPU 上运行，用于验证实验流程，不下载大型数据集或模型权重。
+
+Generate toy data:
+
+生成 toy 数据：
+
+```bash
+python scripts/create_toy_segmentation_data.py
+```
+
+Run model and loss comparison:
+
+运行模型和损失函数对比：
+
+```bash
+python scripts/run_segmentation_comparison.py --config configs/demo_comparison.yaml
+```
+
+Run visualization demo:
+
+运行可视化 demo：
+
+```bash
+python scripts/run_visualization_demo.py
+```
+
+Run error analysis demo:
+
+运行错误分析 demo：
+
+```bash
+python scripts/run_error_analysis.py
 ```
 
 ## Dataset Format / 数据集格式
@@ -331,13 +389,22 @@ configs/final_model.yaml
 checkpoints/best_model.pth
 ```
 
-## Limitations / 局限性
+## Current Limitations / 当前限制
 
-- Current reported metrics are based on the available Kaggle validation split.
-- Inference time was not persisted in the Kaggle output files and is therefore reported as `Not available`.
-- The high-accuracy model shows mild overfitting after the best epoch.
-- The current visualization overlays predicted masks only; true masks are saved separately.
-- No independent external test set evaluation is included in the current outputs.
+- Current reported metrics are based on the available Kaggle validation split. / 当前指标基于已有 Kaggle 验证集划分。
+- Inference time was not persisted in the Kaggle output files and is therefore reported as `Not available`. / Kaggle 输出文件未持久化推理时间，因此该字段记为 `Not available`。
+- The high-accuracy model shows mild overfitting after the best epoch. / 高精度模型在最佳 epoch 后出现轻微过拟合。
+- Toy demo results do not represent real medical performance. / toy demo 结果不代表真实医学性能。
+- Full training requires real medical datasets and GPU resources. / 完整训练需要真实医学图像数据集和 GPU 资源。
+- This project is not intended for clinical diagnosis or medical decision-making. / 本项目不用于临床诊断或医学决策。
+
+## Medical Disclaimer / 医学免责声明
+
+English:
+This project is intended only for medical image segmentation experiments and engineering workflow validation. It is not intended for clinical diagnosis, treatment recommendation, or real-world medical decision-making.
+
+中文：
+本项目仅用于医学图像分割算法实验和工程流程验证，不用于临床诊断、治疗建议或真实医疗决策。
 
 ## Future Work / 后续改进
 

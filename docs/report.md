@@ -276,7 +276,7 @@ The local runtime supports CPU/CUDA automatic selection. The high-accuracy model
 
 本地运行支持 CPU/CUDA 自动选择。高精度模型需要安装 `segmentation-models-pytorch`。
 
-## 11. Limitations and Future Work / 局限性与后续工作
+## 11. Current Limitations and Future Work / 当前限制与后续工作
 
 Limitations:
 
@@ -297,3 +297,11 @@ Future work:
 - Add post-processing for boundary refinement and small false-positive filtering.
 - Export ONNX or TorchScript models for deployment.
 - Add batch prediction and structured report export.
+
+## 12. Medical Disclaimer / 医学免责声明
+
+中文：
+本项目仅用于医学图像分割算法实验和工程流程验证，不用于临床诊断、治疗建议或真实医疗决策。
+
+English:
+This project is intended only for medical image segmentation experiments and engineering workflow validation. It is not intended for clinical diagnosis, treatment recommendation, or real-world medical decision-making.

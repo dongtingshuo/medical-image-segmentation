@@ -379,3 +379,11 @@ Try lowering the threshold to `0.3`, verify checkpoint/config matching, and conf
 This can occur after the best epoch. Use the saved `best_model.pth`, not `last_model.pth`.
 
 最佳 epoch 后验证指标波动是常见现象。应使用 `best_model.pth`，而不是 `last_model.pth`。
+
+## Medical Disclaimer / 医学免责声明
+
+English:
+This project is intended only for medical image segmentation experiments and engineering workflow validation. It is not intended for clinical diagnosis, treatment recommendation, or real-world medical decision-making.
+
+中文：
+本项目仅用于医学图像分割算法实验和工程流程验证，不用于临床诊断、治疗建议或真实医疗决策。

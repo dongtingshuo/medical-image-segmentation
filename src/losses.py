@@ -45,9 +45,9 @@ class FocalLoss(nn.Module):
 
 
 class FocalDiceLoss(nn.Module):
-    def __init__(self):
+    def __init__(self, alpha=0.25, gamma=2.0):
         super().__init__()
-        self.focal = FocalLoss()
+        self.focal = FocalLoss(alpha=alpha, gamma=gamma)
         self.dice = DiceLoss()
 
     def forward(self, logits, targets):
@@ -67,3 +67,31 @@ def get_loss(loss_name):
     if name == "focal_dice":
         return FocalDiceLoss()
     raise ValueError(f"Unsupported loss_name: {loss_name}")
+
+
+def build_loss(config):
+    """Build a binary segmentation loss from a YAML-style config dictionary."""
+    loss_cfg = config.get("loss", {}) if isinstance(config, dict) else {}
+    training_cfg = config.get("training", {}) if isinstance(config, dict) else {}
+    name = loss_cfg.get("name", training_cfg.get("loss_name", config.get("loss_name", "bce_dice")))
+    name = str(name).lower()
+    if name == "bce":
+        return nn.BCEWithLogitsLoss()
+    if name == "dice":
+        return DiceLoss(smooth=float(loss_cfg.get("smooth", 1.0)))
+    if name == "bce_dice":
+        return BCEDiceLoss(
+            bce_weight=float(loss_cfg.get("bce_weight", 0.5)),
+            dice_weight=float(loss_cfg.get("dice_weight", 0.5)),
+        )
+    if name == "focal":
+        return FocalLoss(
+            alpha=float(loss_cfg.get("alpha", 0.25)),
+            gamma=float(loss_cfg.get("gamma", 2.0)),
+        )
+    if name == "focal_dice":
+        return FocalDiceLoss(
+            alpha=float(loss_cfg.get("alpha", 0.25)),
+            gamma=float(loss_cfg.get("gamma", 2.0)),
+        )
+    raise ValueError(f"Unsupported loss name: {name}")

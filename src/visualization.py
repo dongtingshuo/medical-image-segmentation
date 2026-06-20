@@ -32,6 +32,52 @@ def make_overlay(image_rgb, mask, color=(255, 0, 0), alpha=0.45):
     return cv2.addWeighted(overlay, alpha, image, 1.0 - alpha, 0)
 
 
+def make_false_positive_map(pred_mask, true_mask):
+    pred = np.asarray(pred_mask).squeeze() > 0
+    true = np.asarray(true_mask).squeeze() > 0
+    return ((pred & ~true).astype(np.uint8) * 255)
+
+
+def make_false_negative_map(pred_mask, true_mask):
+    pred = np.asarray(pred_mask).squeeze() > 0
+    true = np.asarray(true_mask).squeeze() > 0
+    return ((~pred & true).astype(np.uint8) * 255)
+
+
+def make_side_by_side_comparison(image_rgb, true_mask, pred_mask):
+    true_u8 = mask_to_uint8(true_mask)
+    pred_u8 = mask_to_uint8(pred_mask)
+    fp_u8 = make_false_positive_map(pred_u8, true_u8)
+    fn_u8 = make_false_negative_map(pred_u8, true_u8)
+    true_overlay = make_overlay(image_rgb, true_u8, color=(0, 200, 0), alpha=0.45)
+    pred_overlay = make_overlay(image_rgb, pred_u8, color=(255, 0, 0), alpha=0.45)
+    fp_rgb = np.stack([fp_u8, np.zeros_like(fp_u8), np.zeros_like(fp_u8)], axis=-1)
+    fn_rgb = np.stack([np.zeros_like(fn_u8), np.zeros_like(fn_u8), fn_u8], axis=-1)
+    return np.concatenate([image_rgb, true_overlay, pred_overlay, fp_rgb, fn_rgb], axis=1)
+
+
+def save_visualization_set(image_rgb, true_mask, pred_mask, output_dir, prefix="sample_001"):
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    true_u8 = mask_to_uint8(true_mask)
+    pred_u8 = mask_to_uint8(pred_mask)
+    overlay = make_overlay(image_rgb, pred_u8)
+    fp_map = make_false_positive_map(pred_u8, true_u8)
+    fn_map = make_false_negative_map(pred_u8, true_u8)
+    comparison = make_side_by_side_comparison(image_rgb, true_u8, pred_u8)
+    paths = {
+        "overlay": output_dir / f"{prefix}_overlay.png",
+        "false_positive": output_dir / f"{prefix}_false_positive.png",
+        "false_negative": output_dir / f"{prefix}_false_negative.png",
+        "comparison": output_dir / f"{prefix}_comparison.png",
+    }
+    cv2.imwrite(str(paths["overlay"]), cv2.cvtColor(overlay, cv2.COLOR_RGB2BGR))
+    cv2.imwrite(str(paths["false_positive"]), fp_map)
+    cv2.imwrite(str(paths["false_negative"]), fn_map)
+    cv2.imwrite(str(paths["comparison"]), cv2.cvtColor(comparison, cv2.COLOR_RGB2BGR))
+    return paths
+
+
 def save_prediction_result(image_rgb, pred_mask, output_dir, prefix="prediction", true_mask=None):
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -92,4 +138,3 @@ def save_sample_predictions(model, dataloader, device, output_dir, threshold=0.5
             saved += 1
             if saved >= max_samples:
                 return
-

@@ -1,0 +1,45 @@
+experiment_name: toy_segmentation_comparison
+seed: 42
+device: cpu
+
+data:
+  image_dir: examples/toy_segmentation_demo/images
+  mask_dir: examples/toy_segmentation_demo/masks
+  image_size: 128
+  num_samples: 12
+
+training:
+  batch_size: 4
+  epochs: 1
+  lr: 1.0e-3
+  max_batches: 2
+
+models:
+  - name: unet
+    encoder: null
+    base_channels: 8
+  - name: attention_unet
+    encoder: null
+    base_channels: 8
+  - name: unet_plus_plus
+    encoder: resnet18
+    encoder_name: resnet18
+    encoder_weights: null
+  - name: deeplabv3plus
+    encoder: resnet18
+    encoder_name: resnet18
+    encoder_weights: null
+
+loss:
+  name: bce_dice
+
+losses:
+  - name: bce
+  - name: dice
+  - name: bce_dice
+  - name: focal
+    alpha: 0.25
+    gamma: 2.0
+
+paths:
+  output_dir: outputs/comparison
