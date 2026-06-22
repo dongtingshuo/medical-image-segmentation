@@ -32,6 +32,8 @@ All data paths must come from YAML configs or command-line arguments. Source cod
 
 - Local code must support CPU/CUDA automatic selection. / 本地代码必须支持 CPU/CUDA 自动选择。
 - Mixed precision is enabled only when CUDA is usable. / mixed precision 仅在 CUDA 可用时启用。
+- Deterministic algorithms and seeded DataLoader workers are the default; performance-oriented exceptions must be explicit in YAML. / 默认使用确定性算法和 DataLoader worker 随机种子；吞吐量优先的例外必须在 YAML 中明确设置。
+- Load checkpoints with `weights_only=True` and validate embedded architecture metadata. / checkpoint 必须使用 `weights_only=True` 加载，并验证其内嵌架构元数据。
 - Do not commit real datasets, large checkpoints, or training artifacts. / 不提交真实数据集、大型 checkpoint 或训练产物。
 - After changing models, losses, metrics, trainer, or analysis logic, run tests. / 修改模型、loss、metrics、trainer 或分析逻辑后需要运行测试。
 
@@ -39,15 +41,15 @@ All data paths must come from YAML configs or command-line arguments. Source cod
 
 ```bash
 pip install -r requirements.txt
-pytest tests
+python -m pytest -q
 python scripts/create_toy_segmentation_data.py
 python scripts/run_segmentation_comparison.py --config configs/demo_comparison.yaml
 python scripts/run_visualization_demo.py
 python scripts/run_error_analysis.py
 python scripts/check_dataset.py --config configs/debug_local.yaml
 python train.py --config configs/unet.yaml
-python evaluate.py --config configs/unet.yaml --checkpoint checkpoints/best_model.pth
-python predict.py --config configs/unet.yaml --checkpoint checkpoints/best_model.pth --image path/to/image.jpg
+python evaluate.py --config configs/final_model.yaml --checkpoint checkpoints/best_model.pth --split val
+python predict.py --config configs/final_model.yaml --checkpoint checkpoints/best_model.pth --image path/to/image.jpg
 python app.py
 ```
 
@@ -61,6 +63,8 @@ python app.py
 - `outputs/`: generated local outputs ignored by Git / 本地生成输出，默认被 Git 忽略。
 - `checkpoints/`: local model weights ignored by Git / 本地模型权重，默认被 Git 忽略。
 - `docs/`: reports, plans, and templates / 报告、计划和模板。
+- `models/`: release manifest and verified artifact metadata / Release manifest 和已验证权重元数据。
+- `.github/workflows/`: CPU continuous-integration checks / CPU 持续集成检查。
 - `tests/`: unit and workflow tests independent of real medical datasets / 不依赖真实医学数据集的单元测试和流程测试。
 
 ## Kaggle Training and Local Inference / Kaggle 训练与本地推理

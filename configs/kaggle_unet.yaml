@@ -1,6 +1,8 @@
 # Modify dataset paths according to the mounted Kaggle Dataset name.
 experiment_name: kaggle_unet
 seed: 42
+reproducibility:
+  deterministic: true
 device: auto
 require_gpu: true
 mixed_precision: true

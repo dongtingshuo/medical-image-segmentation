@@ -41,18 +41,24 @@ def get_train_transforms(config):
         if aug_cfg.get("color_jitter", True):
             transforms.append(A.RandomBrightnessContrast(p=0.3))
     transforms.append(A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)))
-    return A.Compose(transforms)
+    compose = A.Compose(transforms)
+    if hasattr(compose, "set_random_seed"):
+        compose.set_random_seed(int(config.get("seed", 42)))
+    return compose
 
 
 def get_val_transforms(config):
     _require_albumentations()
     height, width = _as_size(config)
-    return A.Compose(
+    compose = A.Compose(
         [
             A.Resize(height=height, width=width),
             A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
         ]
     )
+    if hasattr(compose, "set_random_seed"):
+        compose.set_random_seed(int(config.get("seed", 42)) + 1)
+    return compose
 
 
 class SkinLesionDataset(Dataset):

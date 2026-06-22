@@ -1,9 +1,10 @@
 from src.model_attention_unet import AttentionUNet
 from src.model_unet import UNet
+from src.utils import canonical_model_name
 
 
 def get_model(model_name, in_channels=3, out_channels=1, **kwargs):
-    name = str(model_name).lower()
+    name = canonical_model_name(model_name)
     base_channels = int(kwargs.get("base_channels", 32))
 
     if name == "unet":
@@ -34,4 +35,3 @@ def get_model(model_name, in_channels=3, out_channels=1, **kwargs):
         )
 
     raise ValueError(f"Unsupported model_name: {model_name}")
-

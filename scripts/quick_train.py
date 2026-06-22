@@ -7,10 +7,10 @@ from torch.utils.data import DataLoader
 
 from train import build_optimizer, build_scheduler
 from src.dataset import SkinLesionDataset, get_train_transforms, get_val_transforms
-from src.losses import get_loss
+from src.losses import build_loss
 from src.model_factory import get_model
 from src.trainer import train_model
-from src.utils import create_dirs, data_path, get_device, load_config, set_seed
+from src.utils import create_dirs, data_path, get_device, load_config, make_torch_generator, seed_worker, set_seed
 from src.visualization import save_sample_predictions
 
 
@@ -57,7 +57,9 @@ def main():
     config["training"]["epochs"] = max(1, min(args.epochs, 3))
     config["training"].setdefault("max_train_batches", 20)
     config["training"].setdefault("max_val_batches", 10)
-    set_seed(config.get("seed", 42))
+    seed = int(config.get("seed", 42))
+    deterministic = bool(config.get("reproducibility", {}).get("deterministic", True))
+    set_seed(seed, deterministic=deterministic)
     device = get_device(config.get("device", "auto"))
 
     paths = config.get("paths", {})
@@ -75,6 +77,8 @@ def main():
         shuffle=True,
         num_workers=int(training.get("num_workers", 0)),
         pin_memory=device.type == "cuda",
+        worker_init_fn=seed_worker,
+        generator=make_torch_generator(seed),
     )
     val_loader = DataLoader(
         val_dataset,
@@ -82,16 +86,21 @@ def main():
         shuffle=False,
         num_workers=int(training.get("num_workers", 0)),
         pin_memory=device.type == "cuda",
+        worker_init_fn=seed_worker,
+        generator=make_torch_generator(seed + 1),
     )
 
     model_cfg = dict(config.get("model", {}))
-    model_name = model_cfg.pop("model_name", "unet")
+    model_name = model_cfg.pop("model_name", model_cfg.pop("name", "unet"))
+    if "encoder_name" not in model_cfg and model_cfg.get("encoder"):
+        model_cfg["encoder_name"] = model_cfg["encoder"]
+    model_cfg.pop("encoder", None)
     in_channels = int(model_cfg.pop("in_channels", 3))
     out_channels = int(model_cfg.pop("out_channels", 1))
     model = get_model(model_name, in_channels=in_channels, out_channels=out_channels, **model_cfg).to(device)
     optimizer = build_optimizer(model, config)
     scheduler = build_scheduler(optimizer, config)
-    criterion = get_loss(training.get("loss_name", "bce_dice"))
+    criterion = build_loss(config)
     result = train_model(model, train_loader, val_loader, criterion, optimizer, scheduler, device, config)
     save_sample_predictions(model, val_loader, device, sanity_dir / "quick_train_predictions", max_samples=4)
     write_report(sanity_dir / "quick_train_report.md", config, device, result)

@@ -1,6 +1,8 @@
 # Fast Kaggle smoke-test configuration. Run this before long training.
 experiment_name: kaggle_debug
 seed: 42
+reproducibility:
+  deterministic: true
 device: auto
 require_gpu: false
 mixed_precision: true

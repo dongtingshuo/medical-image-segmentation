@@ -1,5 +1,7 @@
 experiment_name: final_high_accuracy_unetplusplus_effb3
 seed: 42
+reproducibility:
+  deterministic: true
 device: auto
 require_gpu: false
 mixed_precision: false
@@ -9,6 +11,9 @@ data:
   train_masks_dir: data/masks/train
   val_images_dir: data/images/val
   val_masks_dir: data/masks/val
+  # Optional independent evaluation split:
+  # test_images_dir: data/images/test
+  # test_masks_dir: data/masks/test
   image_size: 384
 
 model:

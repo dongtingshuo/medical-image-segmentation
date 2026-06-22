@@ -27,10 +27,10 @@ The current loss functions include BCE Loss, Dice Loss, BCE + Dice Loss, and Foc
 ## Evaluation Metrics / 评估指标
 
 中文：
-项目使用 Dice、IoU、Precision、Recall、F1、Sensitivity 和 Specificity 等指标分析分割结果。Recall 与 Sensitivity 在二分类分割中表示真实前景像素被找回的比例。
+项目使用 Dice、IoU、Precision、Recall/Sensitivity、Specificity 和 Boundary F1 等指标分析分割结果。Boundary F1 用于衡量给定像素容差内的边界一致性。
 
 English:
-The project analyzes segmentation outputs with Dice, IoU, Precision, Recall, F1, Sensitivity, and Specificity. In binary segmentation, Recall and Sensitivity represent the fraction of ground-truth foreground pixels recovered by prediction.
+The project analyzes segmentation outputs with Dice, IoU, Precision, Recall/Sensitivity, Specificity, and Boundary F1. Boundary F1 measures contour agreement within a specified pixel tolerance.
 
 ## Comparison Workflow / 对比实验流程
 

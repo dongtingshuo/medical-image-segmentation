@@ -8,7 +8,7 @@ import torch
 from torch.utils.data import DataLoader, Subset
 
 from src.dataset import SkinLesionDataset, get_val_transforms
-from src.losses import get_loss
+from src.losses import build_loss
 from src.metrics import dice_score, iou_score
 from src.model_factory import get_model
 from src.utils import data_path, get_device, load_config, set_seed
@@ -17,7 +17,10 @@ from src.visualization import save_sample_predictions
 
 def build_model(config, device):
     model_cfg = copy.deepcopy(config.get("model", {}))
-    model_name = model_cfg.pop("model_name", "unet")
+    model_name = model_cfg.pop("model_name", model_cfg.pop("name", "unet"))
+    if "encoder_name" not in model_cfg and model_cfg.get("encoder"):
+        model_cfg["encoder_name"] = model_cfg["encoder"]
+    model_cfg.pop("encoder", None)
     in_channels = int(model_cfg.pop("in_channels", 3))
     out_channels = int(model_cfg.pop("out_channels", 1))
     return get_model(model_name, in_channels=in_channels, out_channels=out_channels, **model_cfg).to(device)
@@ -86,7 +89,8 @@ def main():
     args = parser.parse_args()
 
     config = load_config(args.config)
-    set_seed(config.get("seed", 42))
+    deterministic = bool(config.get("reproducibility", {}).get("deterministic", True))
+    set_seed(config.get("seed", 42), deterministic=deterministic)
     device = get_device(config.get("device", "auto"))
     output_dir = Path(config.get("paths", {}).get("output_dir", "outputs")) / "sanity_check"
     pred_dir = output_dir / "overfit_predictions"
@@ -99,7 +103,7 @@ def main():
     loader = DataLoader(subset, batch_size=sample_count, shuffle=False, num_workers=0)
 
     model = build_model(config, device)
-    criterion = get_loss(config.get("training", {}).get("loss_name", "bce_dice"))
+    criterion = build_loss(config)
     optimizer = build_optimizer(model, config)
     images, masks = next(iter(loader))
     images = images.to(device)
@@ -107,11 +111,11 @@ def main():
 
     history = {"epoch": [], "loss": [], "dice": [], "iou": []}
     use_amp = bool(config.get("mixed_precision", True)) and device.type == "cuda"
-    scaler = torch.cuda.amp.GradScaler(enabled=use_amp)
+    scaler = torch.amp.GradScaler("cuda", enabled=use_amp)
     for epoch in range(1, args.epochs + 1):
         model.train()
         optimizer.zero_grad(set_to_none=True)
-        with torch.cuda.amp.autocast(enabled=use_amp):
+        with torch.amp.autocast("cuda", enabled=use_amp):
             logits = model(images)
             loss = criterion(logits, masks)
         if not torch.isfinite(loss).all():

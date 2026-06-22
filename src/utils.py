@@ -1,5 +1,7 @@
+import os
 import random
 import time
+import warnings
 from pathlib import Path
 
 import numpy as np
@@ -7,13 +9,41 @@ import torch
 import yaml
 
 
-def set_seed(seed=42):
+CHECKPOINT_FORMAT_VERSION = 2
+MODEL_NAME_ALIASES = {"unetplusplus": "unet_plus_plus"}
+
+
+def canonical_model_name(model_name):
+    normalized = str(model_name).lower().replace("-", "_")
+    return MODEL_NAME_ALIASES.get(normalized, normalized)
+
+
+def set_seed(seed=42, deterministic=True):
+    if deterministic:
+        os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
-    torch.backends.cudnn.deterministic = False
-    torch.backends.cudnn.benchmark = True
+    torch.backends.cudnn.deterministic = bool(deterministic)
+    torch.backends.cudnn.benchmark = not bool(deterministic)
+    torch.use_deterministic_algorithms(bool(deterministic), warn_only=True)
+
+
+def seed_worker(_worker_id):
+    worker_seed = torch.initial_seed() % (2**32)
+    np.random.seed(worker_seed)
+    random.seed(worker_seed)
+    worker_info = torch.utils.data.get_worker_info()
+    transform = getattr(getattr(worker_info, "dataset", None), "transform", None)
+    if hasattr(transform, "set_random_seed"):
+        transform.set_random_seed(worker_seed)
+
+
+def make_torch_generator(seed=42):
+    generator = torch.Generator()
+    generator.manual_seed(int(seed))
+    return generator
 
 
 def load_config(path):
@@ -88,15 +118,81 @@ def save_checkpoint(state, path):
     torch.save(state, path)
 
 
-def load_checkpoint(path, model, device, optimizer=None):
+def load_checkpoint_payload(path, device="cpu"):
     path = Path(path)
     if not path.exists():
         raise FileNotFoundError(f"Checkpoint does not exist: {path}")
-    checkpoint = torch.load(path, map_location=device)
+    try:
+        checkpoint = torch.load(path, map_location=device, weights_only=True)
+    except TypeError as exc:
+        raise RuntimeError(
+            "This project requires a PyTorch version that supports safe checkpoint loading with "
+            "`weights_only=True`. Install the pinned dependencies from requirements.txt."
+        ) from exc
+    except Exception as exc:
+        raise RuntimeError(
+            f"Checkpoint could not be loaded safely: {path}. Only use checkpoints produced by this project "
+            "or downloaded from its verified GitHub Release."
+        ) from exc
+    if not isinstance(checkpoint, dict):
+        raise ValueError(f"Unsupported checkpoint payload in {path}: expected a dictionary.")
+    return checkpoint
+
+
+def checkpoint_model_config(checkpoint):
+    config = checkpoint.get("config", {})
+    if not isinstance(config, dict):
+        return {}
+    model_config = config.get("model", {})
+    return dict(model_config) if isinstance(model_config, dict) else {}
+
+
+def model_architecture_signature(model_config):
+    model_config = dict(model_config or {})
+    model_name = model_config.get("model_name", model_config.get("name", "unet"))
+    encoder_name = model_config.get("encoder_name", model_config.get("encoder"))
+    signature = {
+        "model_name": canonical_model_name(model_name),
+        "in_channels": int(model_config.get("in_channels", 3)),
+        "out_channels": int(model_config.get("out_channels", 1)),
+    }
+    if signature["model_name"] in {"unet", "attention_unet"}:
+        signature["base_channels"] = int(model_config.get("base_channels", 32))
+    elif encoder_name:
+        signature["encoder_name"] = str(encoder_name).lower()
+    return signature
+
+
+def validate_checkpoint_model_config(checkpoint, expected_model_config):
+    saved_model_config = checkpoint_model_config(checkpoint)
+    if not saved_model_config or not expected_model_config:
+        return
+    saved_signature = model_architecture_signature(saved_model_config)
+    expected_signature = model_architecture_signature(expected_model_config)
+    if saved_signature != expected_signature:
+        raise ValueError(
+            "Checkpoint architecture does not match the selected model configuration. "
+            f"checkpoint={saved_signature}, selected={expected_signature}. "
+            "Use the checkpoint's embedded configuration or the matching YAML file."
+        )
+
+
+def load_checkpoint(path, model, device, optimizer=None, expected_model_config=None, checkpoint=None):
+    checkpoint = checkpoint or load_checkpoint_payload(path, device=device)
+    validate_checkpoint_model_config(checkpoint, expected_model_config)
     state_dict = checkpoint.get("model_state_dict", checkpoint)
-    model.load_state_dict(state_dict)
+    try:
+        model.load_state_dict(state_dict)
+    except RuntimeError as exc:
+        raise ValueError(
+            "Checkpoint parameters do not match the constructed model. Check model_name, encoder_name, "
+            "in_channels, out_channels, and base_channels."
+        ) from exc
     if optimizer is not None and "optimizer_state_dict" in checkpoint:
-        optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+        try:
+            optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+        except (ValueError, RuntimeError) as exc:
+            warnings.warn(f"Optimizer state was not restored: {exc}", RuntimeWarning, stacklevel=2)
     return checkpoint
 
 

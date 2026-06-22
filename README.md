@@ -1,5 +1,9 @@
 # Medical Image Segmentation
 
+[![CI](https://github.com/dongtingshuo/medical-image-segmentation/actions/workflows/ci.yml/badge.svg)](https://github.com/dongtingshuo/medical-image-segmentation/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/dongtingshuo/medical-image-segmentation)](https://github.com/dongtingshuo/medical-image-segmentation/releases/latest)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 **English:** Skin lesion segmentation with improved U-Net models.  
 **中文：** 基于 U-Net 改进模型的皮肤病灶图像分割系统。
 
@@ -31,7 +35,7 @@ Config: configs/final_model.yaml
 - U-Net++ and DeepLabV3+ high-accuracy models / U-Net++ 与 DeepLabV3+ 高精度模型
 - Kaggle GPU training workflow / Kaggle GPU 训练流程
 - CPU/CUDA automatic local inference / 本地 CPU/CUDA 自动选择
-- Dice, IoU, Precision, Recall evaluation / Dice、IoU、Precision、Recall 评估
+- Dice, IoU, Precision, Recall, Specificity, and Boundary F1 evaluation / Dice、IoU、Precision、Recall、Specificity 与 Boundary F1 评估
 - Model comparison and loss comparison / 模型对比与损失函数对比
 - Prediction visualization with masks and overlays / mask 与叠加图可视化
 - Overlay visualization and false-positive/false-negative maps / 叠加可视化与误检、漏检图
@@ -49,6 +53,7 @@ src/                     Dataset, models, losses, metrics, trainer, visualizatio
 scripts/                 Dataset check, small-batch overfit, quick train
 notebooks/               Kaggle training notebook
 docs/                    Technical report and experiment documents
+models/                  Versioned model manifest and artifact metadata
 outputs/                 Local outputs, curves, samples, sanity checks
 checkpoints/             Model checkpoints
 tests/                   Unit tests independent of real datasets
@@ -69,6 +74,11 @@ The main project documents describe training, evaluation, result interpretation,
 - [docs/report.md](docs/report.md)
 - [docs/EXPERIMENT_REPORT.md](docs/EXPERIMENT_REPORT.md)
 - [FINAL_GUIDE.md](FINAL_GUIDE.md)
+- [DATASET.md](DATASET.md)
+- [MODEL_CARD.md](MODEL_CARD.md)
+- [CONTRIBUTING.md](CONTRIBUTING.md)
+- [SECURITY.md](SECURITY.md)
+- [CHANGELOG.md](CHANGELOG.md)
 - [examples/toy_segmentation_demo/README.md](examples/toy_segmentation_demo/README.md)
 
 ## System Architecture / 系统架构
@@ -94,14 +104,14 @@ flowchart TD
 
 ## Environment Setup / 环境配置
 
-Python 3.10+ is recommended.
+Python 3.10-3.12 is supported. Direct dependencies are pinned for reproducible installation.
 
-推荐使用 Python 3.10+。
+支持 Python 3.10-3.12，直接依赖已锁定版本，用于可重复安装。
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 ```
 
 `requirements.txt` already includes the dependency for the final U-Net++ model. If you use a minimal environment, install it manually:
@@ -117,8 +127,12 @@ Run tests:
 运行测试：
 
 ```bash
-pytest tests
+python -m pytest -q
 ```
+
+GitHub Actions runs the CPU test suite and command-line smoke tests on Python 3.10 and 3.12. Training uses deterministic algorithms and seeded DataLoader workers by default; set `reproducibility.deterministic: false` only when throughput is more important than exact repeatability.
+
+GitHub Actions 会在 Python 3.10 和 3.12 上执行 CPU 测试与命令行检查。训练默认启用确定性算法和 DataLoader worker 随机种子；只有在吞吐量优先时才建议设置 `reproducibility.deterministic: false`。
 
 ## Quick Demo / 快速演示
 
@@ -184,6 +198,10 @@ All dataset paths are passed through YAML configs or command-line arguments. Sou
 
 所有数据路径均通过 YAML 配置或命令行参数传入，源码不硬编码本地或 Kaggle 数据路径。
 
+The reported experiments use the ISIC 2017 train/validation segmentation split through a Kaggle mirror. Dataset provenance, split counts, licensing boundaries, and validation status are documented in [DATASET.md](DATASET.md). The medical dataset is not redistributed by this repository.
+
+已报告实验使用 Kaggle 镜像中的 ISIC 2017 train/validation 分割数据。数据来源、划分数量、授权边界和评估状态详见 [DATASET.md](DATASET.md)。本仓库不再分发医疗数据。
+
 ## Kaggle Training / Kaggle 训练
 
 Training was completed in a Kaggle GPU environment. The high-accuracy run used Tesla P100 with a PyTorch CUDA compatibility preparation step.
@@ -204,7 +222,7 @@ Pre-training checks:
 训练前检查：
 
 ```bash
-pytest tests
+python -m pytest -q
 python scripts/check_dataset.py --config configs/kaggle_debug.yaml
 python scripts/overfit_small_batch.py --config configs/kaggle_debug.yaml
 python scripts/quick_train.py --config configs/kaggle_debug.yaml
@@ -241,6 +259,26 @@ Model checkpoint files (`*.pth`, `*.pt`, `*.ckpt`) are intentionally excluded fr
 
 模型权重文件（`*.pth`、`*.pt`、`*.ckpt`）不会提交到 Git。请从 Kaggle 输出或项目 Release 下载 `best_model.pth`，并放到 `checkpoints/best_model.pth` 后再进行本地推理。
 
+Verified Release / 已验证 Release：
+
+```bash
+mkdir -p checkpoints
+curl -L \
+  https://github.com/dongtingshuo/medical-image-segmentation/releases/download/v1.0.0/best_model.pth \
+  -o checkpoints/best_model.pth
+shasum -a 256 checkpoints/best_model.pth
+```
+
+Expected SHA256 / 期望校验值：
+
+```text
+4b04ccd5f4fbdad492a91ea9866d31b9329a886e74464ddf42fffa1854f76577
+```
+
+See [MODEL_CARD.md](MODEL_CARD.md) and [models/model_manifest.yaml](models/model_manifest.yaml) for model scope and machine-readable metadata. Checkpoints are loaded with PyTorch `weights_only=True`; do not use untrusted weight files.
+
+模型适用范围和机器可读元数据见 [MODEL_CARD.md](MODEL_CARD.md) 与 [models/model_manifest.yaml](models/model_manifest.yaml)。checkpoint 使用 PyTorch `weights_only=True` 加载，请勿使用来源不可信的权重文件。
+
 Single-image prediction:
 
 单图预测：
@@ -274,7 +312,11 @@ Evaluation command:
 评估命令：
 
 ```bash
-python evaluate.py --config configs/final_model.yaml --checkpoint checkpoints/best_model.pth
+python evaluate.py \
+  --config configs/final_model.yaml \
+  --checkpoint checkpoints/best_model.pth \
+  --split val \
+  --threshold 0.5
 ```
 
 Metrics:
@@ -285,6 +327,12 @@ Metrics:
 - IoU: intersection-over-union of predicted and ground-truth masks.
 - Precision: proportion of predicted lesion pixels that are correct.
 - Recall: proportion of ground-truth lesion pixels recovered by prediction.
+- Specificity: proportion of background pixels correctly rejected.
+- Boundary F1: boundary agreement within a configurable pixel tolerance.
+
+`evaluate.py --split test` is supported when `test_images_dir` and `test_masks_dir` are explicitly defined in the YAML config. The repository does not claim test-set results until those paths are supplied and evaluated.
+
+当 YAML 明确定义 `test_images_dir` 和 `test_masks_dir` 时，可使用 `evaluate.py --split test`。在未提供并评估该划分前，仓库不声明测试集结果。
 
 ## Results / 实验结果
 
@@ -301,7 +349,7 @@ The full Kaggle outputs are kept outside Git tracking. A small set of representa
 
 完整 Kaggle 输出不纳入 Git 跟踪。仓库文档使用 `docs/assets/` 中的少量代表性曲线、预测样例和数据检查图。
 
-| Experiment | Model | Encoder | Image Size | Batch Size | Best Epoch | Loss | Best Val Loss | Dice | IoU | Precision | Recall | Training Time | Inference Time |
+| Experiment | Model | Encoder | Image Size | Batch Size | Best Epoch | Loss | Val Loss at Best Dice Epoch | Dice | IoU | Precision | Recall | Training Time | Inference Time |
 | --- | --- | --- | ---: | ---: | ---: | --- | ---: | ---: | ---: | ---: | ---: | --- | --- |
 | U-Net baseline | U-Net | None | 256 | 8 | 27 | BCE + Dice | 0.186221 | 0.839209 | 0.749852 | 0.904178 | 0.836919 | 11m 54s | Not available |
 | High accuracy model | U-Net++ | EfficientNet-B3, ImageNet | 384 | 8 | 4 | BCE + Dice | 0.153719 | 0.872120 | 0.792033 | 0.905242 | 0.881161 | 18m 26s | Not available |
@@ -392,6 +440,8 @@ checkpoints/best_model.pth
 ## Current Limitations / 当前限制
 
 - Current reported metrics are based on the available Kaggle validation split. / 当前指标基于已有 Kaggle 验证集划分。
+- The v1.0.0 checkpoint did not persist complete package versions or a source commit; the manifest records these fields as unavailable. / v1.0.0 checkpoint 未保存完整依赖版本和源码 commit，manifest 已将这些字段标记为不可用。
+- No external test, cross-validation, subgroup, or clinical validation has been completed. / 尚未完成外部测试、交叉验证、子组分析或临床验证。
 - Inference time was not persisted in the Kaggle output files and is therefore reported as `Not available`. / Kaggle 输出文件未持久化推理时间，因此该字段记为 `Not available`。
 - The high-accuracy model shows mild overfitting after the best epoch. / 高精度模型在最佳 epoch 后出现轻微过拟合。
 - Toy demo results do not represent real medical performance. / toy demo 结果不代表真实医学性能。

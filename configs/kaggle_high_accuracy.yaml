@@ -2,6 +2,8 @@
 # Modify dataset paths according to the mounted Kaggle Dataset name.
 experiment_name: kaggle_high_accuracy_unetplusplus_effb3
 seed: 42
+reproducibility:
+  deterministic: true
 device: auto
 require_gpu: true
 mixed_precision: true
@@ -11,6 +13,9 @@ data:
   train_masks_dir: /kaggle/input/your-dataset/train/masks
   val_images_dir: /kaggle/input/your-dataset/val/images
   val_masks_dir: /kaggle/input/your-dataset/val/masks
+  # Optional independent evaluation split:
+  # test_images_dir: /kaggle/input/your-dataset/test/images
+  # test_masks_dir: /kaggle/input/your-dataset/test/masks
   image_size: 384
 
 model:

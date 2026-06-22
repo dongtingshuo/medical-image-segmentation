@@ -35,10 +35,10 @@ Compare `unet.yaml` with `unet_no_aug.yaml` to analyze the effect of augmentatio
 ## Experiment 4: Loss Comparison / 实验 4：损失函数对比
 
 中文：
-比较 BCE、Dice 和 BCE + Dice Loss 对 Dice、IoU、Precision 和 Recall 的影响。
+比较 BCE、Dice 和 BCE + Dice Loss 对 Dice、IoU、Precision、Recall/Specificity 和 Boundary F1 的影响。
 
 English:
-Compare BCE, Dice, and BCE + Dice Loss in terms of Dice, IoU, Precision, and Recall.
+Compare BCE, Dice, and BCE + Dice Loss in terms of Dice, IoU, Precision, Recall/Specificity, and Boundary F1.
 
 ## Experiment 5: High-Capacity Models / 实验 5：高容量模型
 
@@ -48,13 +48,21 @@ Compare BCE, Dice, and BCE + Dice Loss in terms of Dice, IoU, Precision, and Rec
 English:
 Compare U-Net++, DeepLabV3+, and optional FPN configurations. Pretrained encoders are enabled only in formal training configurations.
 
+## Experiment 6: Repeated Seeds and Independent Test / 实验 6：多随机种子与独立测试
+
+中文：
+在数据划分固定时至少使用 3 个随机种子训练，报告均值与标准差。模型选择完成后，使用未参与调参的 test split 评估。
+
+English:
+Train with at least three random seeds on a fixed split and report mean and standard deviation. After model selection, evaluate on a test split that was not used for tuning.
+
 ## Current Limitations / 当前限制
 
 中文：
-轻量 demo 仅用于验证流程。正式结论需要真实数据集、稳定训练设置和明确的数据划分。
+轻量 demo 仅用于验证流程。当前真实实验仅报告单一验证集结果；多随机种子、独立测试和外部验证尚未完成。
 
 English:
-The lightweight demo is only for workflow validation. Formal conclusions require real datasets, stable training settings, and explicit data splits.
+The lightweight demo is only for workflow validation. Current real-data experiments report one validation split only; repeated seeds, independent testing, and external validation remain incomplete.
 
 ## Medical Disclaimer / 医学免责声明
 

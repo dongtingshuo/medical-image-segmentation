@@ -6,6 +6,10 @@ This guide describes how to reproduce the training workflow, download Kaggle out
 
 ## 1. Environment Setup / 环境配置
 
+Use Python 3.10-3.12. `requirements.txt` pins direct dependency versions; Kaggle uses `requirements-kaggle.txt` so that its GPU-specific PyTorch build remains under explicit control.
+
+使用 Python 3.10-3.12。`requirements.txt` 已锁定直接依赖版本；Kaggle 使用 `requirements-kaggle.txt`，避免覆盖由 GPU 兼容性脚本管理的 PyTorch build。
+
 Create an environment:
 
 创建环境：
@@ -13,7 +17,7 @@ Create an environment:
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 ```
 
 Windows PowerShell:
@@ -36,7 +40,7 @@ Run tests:
 运行测试：
 
 ```bash
-pytest tests
+python -m pytest -q
 ```
 
 Device behavior:
@@ -106,7 +110,7 @@ Run:
 执行：
 
 ```bash
-pytest tests
+python -m pytest -q
 python scripts/check_dataset.py --config configs/kaggle_debug.yaml
 python scripts/overfit_small_batch.py --config configs/kaggle_debug.yaml
 python scripts/quick_train.py --config configs/kaggle_debug.yaml
@@ -206,6 +210,32 @@ Checkpoint files are ignored by Git. For a fresh clone, download `best_model.pth
 
 checkpoint 文件已被 Git 忽略。全新 clone 后，需要从 Kaggle 输出或项目 Release 下载 `best_model.pth`，并放到上述路径。
 
+Direct verified download / 直接验证下载：
+
+```bash
+mkdir -p checkpoints
+curl -L \
+  https://github.com/dongtingshuo/medical-image-segmentation/releases/download/v1.0.0/best_model.pth \
+  -o checkpoints/best_model.pth
+shasum -a 256 checkpoints/best_model.pth
+```
+
+Expected SHA256 / 期望 SHA256：
+
+```text
+4b04ccd5f4fbdad492a91ea9866d31b9329a886e74464ddf42fffa1854f76577
+```
+
+Windows PowerShell verification / Windows PowerShell 校验：
+
+```powershell
+Get-FileHash checkpoints/best_model.pth -Algorithm SHA256
+```
+
+See `MODEL_CARD.md` and `models/model_manifest.yaml` before using the artifact.
+
+使用权重前请阅读 `MODEL_CARD.md` 和 `models/model_manifest.yaml`。
+
 Final model config:
 
 最终模型配置：
@@ -258,12 +288,16 @@ Recommended fields:
 ```text
 Config: configs/final_model.yaml
 Checkpoint: checkpoints/best_model.pth
-Model type: U-Net++
+Model type: Auto (checkpoint/config)
 Threshold: 0.5
 Device: auto
 ```
 
-The Demo shows original image, predicted mask, overlay, lesion area ratio, inference time, and active device.
+The Demo loads the model once and caches it by checkpoint path, modification time, device, and config. It automatically reads the architecture from project checkpoints and rejects incompatible manual model selections.
+
+Demo 会按 checkpoint 路径、修改时间、device 和 config 缓存模型。它会自动读取本项目 checkpoint 中的架构，并拒绝与权重不兼容的手动模型选择。
+
+The Demo shows original image, predicted mask, overlay, lesion area ratio, inference time, active device, model name, and checkpoint epoch.
 
 Demo 会显示原图、预测 mask、叠加图、病灶面积比例、推理时间和当前设备。
 
@@ -274,7 +308,11 @@ Evaluate the final model:
 评估最终模型：
 
 ```bash
-python evaluate.py --config configs/final_model.yaml --checkpoint checkpoints/best_model.pth
+python evaluate.py \
+  --config configs/final_model.yaml \
+  --checkpoint checkpoints/best_model.pth \
+  --split val \
+  --threshold 0.5
 ```
 
 Metrics:
@@ -285,11 +323,18 @@ Metrics:
 - IoU
 - Precision
 - Recall
+- Sensitivity, represented by Recall for the lesion class
+- Specificity
+- Boundary F1
 - Mean validation loss
+
+To evaluate an independent test split, add `test_images_dir` and `test_masks_dir` under `data` in a YAML config, then run with `--split test`. No test-set result is currently claimed.
+
+如需评估独立测试集，请先在 YAML 的 `data` 中增加 `test_images_dir` 和 `test_masks_dir`，再使用 `--split test`。当前项目不声明任何测试集结果。
 
 ## 10. Completed Results / 已完成结果
 
-| Experiment | Model | Best Val Loss | Dice | IoU | Precision | Recall | Training Time | Inference Time |
+| Experiment | Model | Val Loss at Best Dice Epoch | Dice | IoU | Precision | Recall | Training Time | Inference Time |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | --- | --- |
 | U-Net baseline | U-Net | 0.186221 | 0.839209 | 0.749852 | 0.904178 | 0.836919 | 11m 54s | Not available |
 | High accuracy | U-Net++ EfficientNet-B3 | 0.153719 | 0.872120 | 0.792033 | 0.905242 | 0.881161 | 18m 26s | Not available |
@@ -357,6 +402,10 @@ model_name: unet_plus_plus
 encoder_name: efficientnet-b3
 image_size: 384
 ```
+
+The loader uses `weights_only=True`. A checkpoint rejected by safe loading should not be forced open; download the verified Release artifact and compare its SHA256 instead.
+
+加载器使用 `weights_only=True`。若 checkpoint 被安全加载机制拒绝，不应强制打开；请重新下载经验证的 Release 权重并比对 SHA256。
 
 ### Missing segmentation_models_pytorch / 缺少 segmentation_models_pytorch
 

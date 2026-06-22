@@ -9,6 +9,9 @@ English:
 This section records the model, input size, training parameters, and loss function for reproducibility.
 
 - experiment_name:
+- data_source:
+- split:
+- seed:
 - model_name:
 - image_size:
 - batch_size:
@@ -16,6 +19,8 @@ This section records the model, input size, training parameters, and loss functi
 - lr:
 - loss_name:
 - augmentation_enabled:
+- checkpoint_sha256:
+- best_epoch:
 
 ## Results / 结果
 
@@ -31,8 +36,13 @@ Fill in segmentation metrics on the validation or test split and state the sourc
 | IoU | |
 | Precision | |
 | Recall | |
-| F1 | |
-| Val Loss | |
+| Specificity | |
+| Boundary F1 | |
+| Loss at selected epoch | |
+
+State whether the row is from validation, internal test, or external test data. Report multiple-seed mean and standard deviation when those runs exist; otherwise mark them as not available.
+
+请明确结果来自验证集、内部测试集还是外部测试集。如已完成多随机种子实验，报告均值和标准差；否则标记为不可用。
 
 ## Visualization Analysis / 可视化分析
 

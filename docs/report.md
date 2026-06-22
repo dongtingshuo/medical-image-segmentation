@@ -27,7 +27,7 @@ The system consists of the following modules:
 - Dataset loading: strict image/mask stem matching, binary mask conversion, synchronized augmentation.
 - Model factory: U-Net, Attention U-Net, U-Net++, DeepLabV3+, FPN.
 - Training: mixed precision, scheduler, early stopping, best/last checkpoints.
-- Evaluation: Dice, IoU, Precision, Recall, validation loss.
+- Evaluation: Dice, IoU, Precision, Recall/Sensitivity, Specificity, Boundary F1, validation loss.
 - Visualization: training curves, prediction masks, overlays, lesion area ratio.
 - Kaggle workflow: GPU training and output export.
 - Local workflow: CPU/CUDA inference and Gradio Demo.
@@ -83,6 +83,14 @@ Training was completed in a Kaggle GPU environment. The local environment suppor
 
 训练在 Kaggle GPU 环境完成。本地环境支持 CPU/CUDA 自动选择，用于评估、预测和 Gradio Demo。
 
+The experiment dataset is the ISIC 2017 segmentation train/validation split obtained through the Kaggle mirror `moon1570/isic-2017-train-val-test-images-and-masks`. The project does not redistribute medical images. Provenance and licensing boundaries are recorded in [`DATASET.md`](../DATASET.md).
+
+实验数据为通过 Kaggle 镜像 `moon1570/isic-2017-train-val-test-images-and-masks` 获取的 ISIC 2017 分割 train/validation 划分。本项目不再分发医疗图像，数据来源和授权边界记录在 [`DATASET.md`](../DATASET.md)。
+
+Future runs use deterministic PyTorch algorithms and seeded DataLoader workers by default. The legacy v1.0.0 run used seed 42, but its checkpoint did not persist complete package versions or the source commit; this limitation is recorded rather than reconstructed.
+
+后续训练默认使用 PyTorch 确定性算法和 DataLoader worker 随机种子。v1.0.0 历史实验使用 seed 42，但 checkpoint 未保存完整依赖版本和源码 commit；本报告将其如实记录为限制，不进行推测。
+
 ### 6.1 Dataset Check / 数据检查
 
 The high-accuracy run saved the following sanity check summary:
@@ -129,6 +137,9 @@ The high-accuracy run used early stopping with patience 10 and monitored `val_di
 - IoU measures intersection-over-union.
 - Precision measures correctness among predicted lesion pixels.
 - Recall measures recovery of ground-truth lesion pixels.
+- Sensitivity is equivalent to Recall for the foreground class.
+- Specificity measures correctly rejected background pixels.
+- Boundary F1 measures boundary agreement within a pixel tolerance.
 
 指标定义：
 
@@ -136,6 +147,13 @@ The high-accuracy run used early stopping with patience 10 and monitored `val_di
 - IoU 衡量交并比。
 - Precision 衡量预测为病灶的像素中有多少是正确的。
 - Recall 衡量真实病灶像素中有多少被模型找回。
+- Sensitivity 在前景类上与 Recall 等价。
+- Specificity 衡量背景像素被正确排除的比例。
+- Boundary F1 衡量给定像素容差内的边界一致性。
+
+Specificity and Boundary F1 were added after the v1.0.0 training run, so they are not backfilled into the historical result table.
+
+Specificity 和 Boundary F1 是在 v1.0.0 训练完成后增加的，因此不对历史结果表进行推测回填。
 
 ## 8. Results / 实验结果
 
@@ -152,7 +170,7 @@ Full Kaggle outputs are kept outside Git tracking. Representative documentation 
 
 完整 Kaggle 输出不纳入 Git 跟踪；报告中使用的代表性图片已复制到 `docs/assets/`。
 
-| Experiment | Model | Encoder | Best Epoch | Best Val Loss | Dice | IoU | Precision | Recall | Training Time | Inference Time |
+| Experiment | Model | Encoder | Best Epoch | Val Loss at Best Dice Epoch | Dice | IoU | Precision | Recall | Training Time | Inference Time |
 | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- | --- |
 | U-Net baseline | U-Net | None | 27 | 0.186221 | 0.839209 | 0.749852 | 0.904178 | 0.836919 | 11m 54s | Not available |
 | High accuracy model | U-Net++ | EfficientNet-B3 | 4 | 0.153719 | 0.872120 | 0.792033 | 0.905242 | 0.881161 | 18m 26s | Not available |
@@ -256,6 +274,10 @@ Checkpoint: checkpoints/best_model.pth
 Config: configs/final_model.yaml
 ```
 
+The verified release URL, SHA256 digest, architecture, and validation scope are documented in [`MODEL_CARD.md`](../MODEL_CARD.md) and [`models/model_manifest.yaml`](../models/model_manifest.yaml). The inference loader uses `weights_only=True` and validates checkpoint architecture metadata before loading parameters.
+
+已验证的 Release 地址、SHA256、模型架构和验证范围记录在 [`MODEL_CARD.md`](../MODEL_CARD.md) 和 [`models/model_manifest.yaml`](../models/model_manifest.yaml)。推理端使用 `weights_only=True` 安全加载，并在载入参数前验证 checkpoint 架构元数据。
+
 Local prediction:
 
 本地预测：
@@ -285,6 +307,8 @@ Limitations:
 - Inference time was not persisted in the Kaggle output files.
 - Evaluation is based on the available Kaggle validation split.
 - No independent external test set is included in the current results.
+- No cross-validation, repeated-seed confidence interval, subgroup analysis, calibration study, or clinical validation is included.
+- The legacy v1.0.0 checkpoint did not record complete package versions or a source commit.
 - The current overlay visualization displays predicted masks; true masks are saved separately.
 
 Future work:

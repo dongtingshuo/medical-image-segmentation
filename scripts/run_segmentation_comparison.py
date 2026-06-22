@@ -18,7 +18,7 @@ from scripts.create_toy_segmentation_data import create_toy_segmentation_data
 from src.losses import build_loss
 from src.metrics import dice_score, iou_score, precision_score, recall_score
 from src.model_factory import get_model
-from src.utils import load_config, set_seed
+from src.utils import load_config, make_torch_generator, set_seed
 
 
 DISCLAIMER_ZH = "本项目仅用于医学图像分割算法实验和工程流程验证，不用于临床诊断、治疗建议或真实医疗决策。"
@@ -221,7 +221,9 @@ English:
 
 def run_comparison(config_path):
     config = load_config(config_path)
-    set_seed(int(config.get("seed", 42)))
+    seed = int(config.get("seed", 42))
+    deterministic = bool(config.get("reproducibility", {}).get("deterministic", True))
+    set_seed(seed, deterministic=deterministic)
     output_dir = Path(_cfg_get(config, "paths", "output_dir", "outputs/comparison"))
     output_dir.mkdir(parents=True, exist_ok=True)
     images_dir, masks_dir = _ensure_toy_data(config)
@@ -230,8 +232,20 @@ def run_comparison(config_path):
     dataset = ToySegmentationDataset(images_dir, masks_dir, image_size=data_cfg["image_size"])
     val_dataset = ToySegmentationDataset(images_dir, masks_dir, image_size=data_cfg["image_size"])
     batch_size = int(_cfg_get(config, "training", "batch_size", 4))
-    train_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=0)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=0)
+    train_loader = DataLoader(
+        dataset,
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=0,
+        generator=make_torch_generator(seed),
+    )
+    val_loader = DataLoader(
+        val_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=0,
+        generator=make_torch_generator(seed + 1),
+    )
     device = torch.device("cpu")
     rows = []
     epochs = int(_cfg_get(config, "training", "epochs", 1))

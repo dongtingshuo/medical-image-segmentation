@@ -1,5 +1,7 @@
 experiment_name: unet_baseline
 seed: 42
+reproducibility:
+  deterministic: true
 device: auto
 mixed_precision: true
 

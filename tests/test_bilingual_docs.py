@@ -26,6 +26,10 @@ def test_static_bilingual_documents_have_required_headings():
     _assert_keywords(Path("README.md"), ["Quick Demo", "快速演示"])
     _assert_keywords(Path("docs/EXPERIMENT_REPORT.md"))
     _assert_keywords(Path("examples/toy_segmentation_demo/README.md"))
+    _assert_keywords(Path("MODEL_CARD.md"))
+    dataset_text = Path("DATASET.md").read_text(encoding="utf-8")
+    assert "ISIC 2017" in dataset_text
+    assert "数据集说明" in dataset_text
 
 
 def test_generated_reports_have_bilingual_headings(tmp_path):

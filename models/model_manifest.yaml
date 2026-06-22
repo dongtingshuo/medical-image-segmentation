@@ -1,0 +1,41 @@
+schema_version: 1
+model_id: unetplusplus-efficientnet-b3-isic2017
+release:
+  tag: v1.0.0
+  url: https://github.com/dongtingshuo/medical-image-segmentation/releases/tag/v1.0.0
+  asset_name: best_model.pth
+  asset_url: https://github.com/dongtingshuo/medical-image-segmentation/releases/download/v1.0.0/best_model.pth
+  size_bytes: 159715596
+  sha256: 4b04ccd5f4fbdad492a91ea9866d31b9329a886e74464ddf42fffa1854f76577
+checkpoint:
+  format_version: 1
+  best_epoch: 4
+  source_commit_recorded: false
+  package_versions_recorded: false
+architecture:
+  model_name: unet_plus_plus
+  encoder_name: efficientnet-b3
+  encoder_initialization: imagenet
+  in_channels: 3
+  out_channels: 1
+input:
+  image_size: 384
+  normalization: imagenet
+training:
+  dataset: ISIC 2017 Kaggle mirror
+  train_samples: 2000
+  validation_samples: 150
+  batch_size: 8
+  optimizer: adamw
+  scheduler: cosine
+  loss: bce_dice
+  gpu: Tesla P100
+validation_metrics:
+  loss_at_selected_epoch: 0.15371864661574364
+  dice: 0.8721198565081546
+  iou: 0.7920326684650622
+  precision: 0.9052422046661377
+  recall: 0.881160955680044
+  inference_time: null
+intended_use: engineering experimentation only
+clinical_use: prohibited

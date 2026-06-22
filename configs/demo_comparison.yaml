@@ -1,5 +1,7 @@
 experiment_name: toy_segmentation_comparison
 seed: 42
+reproducibility:
+  deterministic: true
 device: cpu
 
 data:

@@ -1,0 +1,11 @@
+cff-version: 1.2.0
+message: "If you use this engineering framework, please cite the repository release. / 如果使用本工程框架，请引用仓库发布版本。"
+title: "Medical Image Segmentation: Skin Lesion Segmentation with Improved U-Net Models"
+type: software
+authors:
+  - family-names: "dongtingshuo"
+version: 1.1.0
+date-released: 2026-06-22
+license: MIT
+repository-code: "https://github.com/dongtingshuo/medical-image-segmentation"
+url: "https://github.com/dongtingshuo/medical-image-segmentation"

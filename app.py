@@ -6,6 +6,7 @@ from src.utils import load_config
 
 
 MODEL_CHOICES = {
+    "Auto (checkpoint/config)": None,
     "U-Net": "unet",
     "Attention U-Net": "attention_unet",
     "U-Net++": "unet_plus_plus",
@@ -35,32 +36,41 @@ def run_demo(image, checkpoint_path, config_path, threshold, device, model_label
     info = (
         f"Lesion area ratio: {result['lesion_ratio']:.4f}\n"
         f"Inference time: {result['inference_time']:.4f}s\n"
-        f"Device: {result['device']}"
+        f"Device: {result['device']}\n"
+        f"Model: {result['model_name']}\n"
+        f"Checkpoint epoch: {result['checkpoint_epoch'] if result['checkpoint_epoch'] is not None else 'unknown'}"
     )
     return result["image"], result["mask"], result["overlay"], info
 
 
 def build_app():
     with gr.Blocks(title="Skin Lesion Segmentation") as demo:
-        gr.Markdown("# Skin Lesion Segmentation")
+        gr.Markdown("# Skin Lesion Segmentation / 皮肤病灶图像分割")
         with gr.Row():
             with gr.Column():
                 image = gr.Image(type="pil", label="Input image")
-                checkpoint = gr.Textbox(label="Checkpoint path", placeholder="checkpoints/best_model.pth")
-                config = gr.Textbox(label="Config path", value="configs/unet.yaml")
+                checkpoint = gr.Textbox(
+                    label="Checkpoint path",
+                    value="checkpoints/best_model.pth",
+                    placeholder="checkpoints/best_model.pth",
+                )
+                config = gr.Textbox(label="Config path", value="configs/final_model.yaml")
                 threshold = gr.Slider(0.0, 1.0, value=0.5, step=0.01, label="Threshold")
                 device = gr.Dropdown(["auto", "cpu", "cuda"], value="auto", label="Device")
-                model = gr.Dropdown(list(MODEL_CHOICES.keys()), value="U-Net", label="Model")
+                model = gr.Dropdown(
+                    list(MODEL_CHOICES.keys()),
+                    value="Auto (checkpoint/config)",
+                    label="Model",
+                )
                 button = gr.Button("Predict", variant="primary")
             with gr.Column():
                 out_image = gr.Image(label="Resized original")
                 out_mask = gr.Image(label="Predicted mask")
                 out_overlay = gr.Image(label="Overlay")
-                info = gr.Textbox(label="Result", lines=4)
+                info = gr.Textbox(label="Result", lines=5)
         button.click(run_demo, [image, checkpoint, config, threshold, device, model], [out_image, out_mask, out_overlay, info])
-    return demo
+    return demo.queue(default_concurrency_limit=1)
 
 
 if __name__ == "__main__":
     build_app().launch()
-
