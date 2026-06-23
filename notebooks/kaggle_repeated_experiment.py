@@ -10,8 +10,8 @@ WORKING_ROOT = Path("/kaggle/working")
 REPOSITORY_ROOT = WORKING_ROOT / "medical-image-segmentation"
 PREPARED_ROOT = WORKING_ROOT / "prepared_data"
 RESULTS_ROOT = WORKING_ROOT / "repeated_experiments"
-INTERNAL_DATASET = Path("/kaggle/input/isic-2017-train-val-test-images-and-masks")
-EXTERNAL_DATASET = Path("/kaggle/input/isic-2018-task-1")
+INTERNAL_DATASET_REF = "moon1570/isic-2017-train-val-test-images-and-masks"
+EXTERNAL_DATASET_REF = "tntiphan/isic-2018-task-1"
 SEEDS = [42, 123, 2026]
 
 
@@ -20,10 +20,20 @@ def run(command, cwd=None):
     subprocess.run([str(part) for part in command], cwd=cwd, check=True)
 
 
-def require_dataset(path, label):
-    if not path.exists():
-        available = sorted(item.name for item in Path("/kaggle/input").iterdir())
-        raise FileNotFoundError(f"{label} is not mounted at {path}. Available Kaggle inputs: {available}")
+def resolve_dataset(dataset_ref, label):
+    owner, slug = dataset_ref.split("/", maxsplit=1)
+    candidates = [
+        Path("/kaggle/input") / slug,
+        Path("/kaggle/input/datasets") / owner / slug,
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            print(f"{label}: {candidate}", flush=True)
+            return candidate
+    available = sorted(str(path) for path in Path("/kaggle/input").glob("*/*/*"))
+    raise FileNotFoundError(
+        f"{label} ({dataset_ref}) is not mounted at any supported path. Detected inputs: {available}"
+    )
 
 
 def write_runtime_config(path):
@@ -84,8 +94,8 @@ def write_runtime_config(path):
 
 def main():
     os.environ.setdefault("MPLCONFIGDIR", "/kaggle/working/matplotlib-cache")
-    require_dataset(INTERNAL_DATASET, "ISIC 2017 internal dataset")
-    require_dataset(EXTERNAL_DATASET, "ISIC 2018 external dataset")
+    internal_dataset = resolve_dataset(INTERNAL_DATASET_REF, "ISIC 2017 internal dataset")
+    external_dataset = resolve_dataset(EXTERNAL_DATASET_REF, "ISIC 2018 external dataset")
 
     if REPOSITORY_ROOT.exists():
         shutil.rmtree(REPOSITORY_ROOT)
@@ -103,9 +113,9 @@ def main():
             sys.executable,
             "scripts/prepare_isic_data.py",
             "--internal-root",
-            INTERNAL_DATASET,
+            internal_dataset,
             "--external-root",
-            EXTERNAL_DATASET,
+            external_dataset,
             "--output-root",
             PREPARED_ROOT,
             "--image-size",
@@ -169,8 +179,8 @@ def main():
 
     execution_manifest = {
         "repository_commit": commit,
-        "internal_dataset": "moon1570/isic-2017-train-val-test-images-and-masks",
-        "external_dataset": "tntiphan/isic-2018-task-1",
+        "internal_dataset": INTERNAL_DATASET_REF,
+        "external_dataset": EXTERNAL_DATASET_REF,
         "seeds": SEEDS,
         "best_seed_by_validation_dice": best_seed,
         "training_device_required": "cuda",
