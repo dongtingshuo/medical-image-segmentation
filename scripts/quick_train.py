@@ -1,17 +1,30 @@
 import argparse
 import copy
 import math
+import sys
 from pathlib import Path
 
 from torch.utils.data import DataLoader
 
-from train import build_optimizer, build_scheduler
-from src.dataset import SkinLesionDataset, get_train_transforms, get_val_transforms
-from src.losses import build_loss
-from src.model_factory import get_model
-from src.trainer import train_model
-from src.utils import create_dirs, data_path, get_device, load_config, make_torch_generator, seed_worker, set_seed
-from src.visualization import save_sample_predictions
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from src.dataset import SkinLesionDataset, get_train_transforms, get_val_transforms  # noqa: E402
+from src.losses import build_loss  # noqa: E402
+from src.model_factory import get_model  # noqa: E402
+from src.trainer import train_model  # noqa: E402
+from src.utils import (  # noqa: E402
+    create_dirs,
+    data_path,
+    get_device,
+    load_config,
+    make_torch_generator,
+    seed_worker,
+    set_seed,
+)
+from src.visualization import save_sample_predictions  # noqa: E402
+from train import build_optimizer, build_scheduler  # noqa: E402
 
 
 def write_report(path, config, device, result):

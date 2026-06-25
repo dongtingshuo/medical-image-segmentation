@@ -1,18 +1,23 @@
 import argparse
 import copy
 import math
+import sys
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import torch
 from torch.utils.data import DataLoader, Subset
 
-from src.dataset import SkinLesionDataset, get_val_transforms
-from src.losses import build_loss
-from src.metrics import dice_score, iou_score
-from src.model_factory import get_model
-from src.utils import data_path, get_device, load_config, set_seed
-from src.visualization import save_sample_predictions
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from src.dataset import SkinLesionDataset, get_val_transforms  # noqa: E402
+from src.losses import build_loss  # noqa: E402
+from src.metrics import dice_score, iou_score  # noqa: E402
+from src.model_factory import get_model  # noqa: E402
+from src.utils import data_path, get_device, load_config, set_seed  # noqa: E402
+from src.visualization import save_sample_predictions  # noqa: E402
 
 
 def build_model(config, device):

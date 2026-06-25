@@ -1,13 +1,18 @@
 import argparse
 import random
+import sys
 from pathlib import Path
 
 import cv2
 import numpy as np
 
-from src.dataset import IMAGE_EXTENSIONS
-from src.utils import data_path, load_config
-from src.visualization import make_overlay
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from src.dataset import IMAGE_EXTENSIONS  # noqa: E402
+from src.utils import data_path, load_config  # noqa: E402
+from src.visualization import make_overlay  # noqa: E402
 
 
 def list_images(directory):
