@@ -40,6 +40,7 @@ Config: configs/final_model.yaml
 - Prediction visualization with masks and overlays / mask 与叠加图可视化
 - Overlay visualization and false-positive/false-negative maps / 叠加可视化与误检、漏检图
 - Segmentation error analysis / 分割错误分析
+- Cross-validation, encoder comparison, subgroup analysis, and statistical summaries / 交叉验证、encoder 对比、子组分析和统计汇总
 - Lightweight toy segmentation demo / 轻量分割演示
 - Gradio Web Demo / Gradio Web 演示
 - Training sanity checks / 训练前质量检查
@@ -50,8 +51,8 @@ Config: configs/final_model.yaml
 ```text
 configs/                 YAML configs for local and Kaggle runs
 src/                     Dataset, models, losses, metrics, trainer, visualization
-scripts/                 Dataset check, small-batch overfit, quick train
-notebooks/               Kaggle training notebook
+scripts/                 Dataset checks, training helpers, research analysis, packaging
+notebooks/               Kaggle training and research scripts/notebook
 docs/                    Technical report and experiment documents
 models/                  Versioned model manifest and artifact metadata
 outputs/                 Local outputs, curves, samples, sanity checks
@@ -79,6 +80,8 @@ The main project documents describe training, evaluation, result interpretation,
 - [CONTRIBUTING.md](CONTRIBUTING.md)
 - [SECURITY.md](SECURITY.md)
 - [CHANGELOG.md](CHANGELOG.md)
+- [docs/releases/v1.1.0.md](docs/releases/v1.1.0.md)
+- [docs/releases/v1.2.0.md](docs/releases/v1.2.0.md)
 - [examples/toy_segmentation_demo/README.md](examples/toy_segmentation_demo/README.md)
 
 ## System Architecture / 系统架构
@@ -243,6 +246,61 @@ High-accuracy training:
 ```bash
 python train.py --config configs/kaggle_high_accuracy.yaml
 ```
+
+## Research Workflow v1.2 / 研究增强流程 v1.2
+
+English:
+Version 1.2 adds a Kaggle-oriented research workflow for small-budget robustness analysis. It does not replace the current default inference model until the new workflow is executed and reviewed.
+
+中文：
+v1.2 新增面向 Kaggle 的小预算研究增强流程，用于稳健性分析。在实际运行并审查结果前，它不会替换当前默认推理模型。
+
+Core commands:
+
+核心命令：
+
+```bash
+python scripts/create_cv_folds.py \
+  --images-dir /path/to/images \
+  --masks-dir /path/to/masks \
+  --output-root outputs/cross_validation \
+  --k 3 \
+  --materialize
+
+python scripts/run_cross_validation.py \
+  --config configs/kaggle_research_v1_2.yaml \
+  --images-dir /kaggle/working/prepared_data/internal/trainval/images \
+  --masks-dir /kaggle/working/prepared_data/internal/trainval/masks \
+  --output-root /kaggle/working/research_v1_2/cross_validation \
+  --k 3
+
+python scripts/run_encoder_comparison.py \
+  --config configs/kaggle_research_v1_2.yaml \
+  --output-root /kaggle/working/research_v1_2/encoder_comparison \
+  --encoders efficientnet-b3 resnet34
+
+python scripts/analyze_subgroups.py \
+  --config /path/to/best_runtime_config.yaml \
+  --checkpoint /path/to/best_model.pth \
+  --split test \
+  --threshold 0.35
+
+python scripts/analyze_statistics.py \
+  --inputs /path/to/metrics.csv \
+  --output-dir outputs/statistical_analysis
+```
+
+Kaggle full research script:
+
+Kaggle 完整研究脚本：
+
+```bash
+python notebooks/kaggle_research_v1_2.py
+```
+
+Expected v1.2 outputs include `cross_validation_summary.md`, `encoder_comparison_summary.md`, subgroup CSV/Markdown reports, statistical CI reports, and `medical-segmentation-research-artifacts-v1.2.zip`. Actual v1.2 metrics should be filled only after the Kaggle script completes.
+
+v1.2 预期输出包括 `cross_validation_summary.md`、`encoder_comparison_summary.md`、子组 CSV/Markdown 报告、统计置信区间报告和 `medical-segmentation-research-artifacts-v1.2.zip`。实际 v1.2 指标应在 Kaggle 脚本完成后再填写。
 
 ## Local Inference / 本地推理
 
@@ -538,7 +596,7 @@ recommended threshold: 0.35
 
 - Current repeated metrics cover validation, independent ISIC 2017 test, and external ISIC 2018 splits, but they are still dataset-level engineering metrics rather than clinical validation. / 当前重复实验指标覆盖验证集、ISIC 2017 独立测试集和 ISIC 2018 外部集，但仍属于数据集级工程评估，不是临床验证。
 - The v1.0.0 checkpoint did not persist complete package versions or a source commit; the manifest records these fields as unavailable. / v1.0.0 checkpoint 未保存完整依赖版本和源码 commit，manifest 已将这些字段标记为不可用。
-- No cross-validation, subgroup analysis, calibration study, reader study, or clinical validation has been completed. / 尚未完成交叉验证、子组分析、校准研究、读者实验或临床验证。
+- Cross-validation, subgroup analysis, and statistical-summary workflows are implemented for v1.2, but their new metrics are not reported until the Kaggle research script is executed. Calibration study, reader study, and clinical validation remain out of scope. / v1.2 已实现交叉验证、子组分析和统计汇总流程，但新指标需在 Kaggle 研究脚本运行后再报告。校准研究、读者实验和临床验证仍未覆盖。
 - CPU/CUDA inference benchmarks were measured on Kaggle x86_64 and Tesla P100; timings may differ on local hardware. / CPU/CUDA 推理基准在 Kaggle x86_64 和 Tesla P100 上测得，本地硬件耗时可能不同。
 - The high-accuracy model shows mild overfitting after the best epoch. / 高精度模型在最佳 epoch 后出现轻微过拟合。
 - Toy demo results do not represent real medical performance. / toy demo 结果不代表真实医学性能。
@@ -555,8 +613,8 @@ This project is intended only for medical image segmentation experiments and eng
 
 ## Future Work / 后续改进
 
-- Add cross-validation and confidence intervals beyond the three-seed summary.
-- Add subgroup analysis for lesion size, contrast, body site, and artifact level when metadata are available.
+- Run and publish the v1.2 Kaggle research workflow artifacts.
+- Extend subgroup analysis with body site and artifact metadata when available.
 - Compare additional encoders such as EfficientNet-B4, ResNet50, and ConvNeXt variants.
 - Evaluate Focal + Dice loss for small-lesion recall.
 - Add post-processing options for boundary smoothing or small false-positive removal.

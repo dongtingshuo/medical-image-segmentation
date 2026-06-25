@@ -46,6 +46,11 @@ python scripts/create_toy_segmentation_data.py
 python scripts/run_segmentation_comparison.py --config configs/demo_comparison.yaml
 python scripts/run_visualization_demo.py
 python scripts/run_error_analysis.py
+python scripts/create_cv_folds.py --images-dir data/images/train --masks-dir data/masks/train --output-root outputs/cross_validation --k 3
+python scripts/run_cross_validation.py --config configs/kaggle_research_v1_2.yaml --images-dir /path/to/images --masks-dir /path/to/masks
+python scripts/run_encoder_comparison.py --config configs/kaggle_research_v1_2.yaml --encoders efficientnet-b3 resnet34
+python scripts/analyze_subgroups.py --config configs/final_model.yaml --checkpoint checkpoints/best_model.pth --split test --threshold 0.35
+python scripts/analyze_statistics.py --inputs /path/to/metrics.csv --output-dir outputs/statistical_analysis
 python scripts/check_dataset.py --config configs/debug_local.yaml
 python train.py --config configs/unet.yaml
 python evaluate.py --config configs/final_model.yaml --checkpoint checkpoints/best_model.pth --split val

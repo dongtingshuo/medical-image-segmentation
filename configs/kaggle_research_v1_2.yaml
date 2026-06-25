@@ -1,0 +1,52 @@
+# Kaggle research workflow base config for v1.2.
+# The Kaggle script writes a runtime copy with real /kaggle/working paths.
+experiment_name: kaggle_research_v1_2_unetplusplus_effb3
+seed: 42
+reproducibility:
+  deterministic: true
+device: auto
+require_gpu: true
+mixed_precision: true
+
+data:
+  train_images_dir: /kaggle/working/prepared_data/internal/train/images
+  train_masks_dir: /kaggle/working/prepared_data/internal/train/masks
+  val_images_dir: /kaggle/working/prepared_data/internal/val/images
+  val_masks_dir: /kaggle/working/prepared_data/internal/val/masks
+  test_images_dir: /kaggle/working/prepared_data/internal/test/images
+  test_masks_dir: /kaggle/working/prepared_data/internal/test/masks
+  external_images_dir: /kaggle/working/prepared_data/external/images
+  external_masks_dir: /kaggle/working/prepared_data/external/masks
+  image_size: 384
+
+model:
+  model_name: unet_plus_plus
+  in_channels: 3
+  out_channels: 1
+  encoder_name: efficientnet-b3
+  encoder_weights: imagenet
+
+training:
+  batch_size: 8
+  epochs: 20
+  lr: 1.0e-4
+  optimizer: adamw
+  scheduler: cosine
+  loss_name: bce_dice
+  num_workers: 2
+  early_stopping:
+    enabled: true
+    patience: 5
+    monitor: val_dice
+    mode: max
+
+augmentation:
+  enabled: true
+  horizontal_flip: true
+  vertical_flip: true
+  rotate: true
+  color_jitter: true
+
+paths:
+  output_dir: /kaggle/working/research_v1_2/preflight
+  checkpoint_dir: /kaggle/working/research_v1_2/preflight_checkpoints

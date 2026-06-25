@@ -163,7 +163,52 @@ Mixed precision: enabled
 Early stopping: enabled
 ```
 
-## 6. Downloading Kaggle Outputs / 下载 Kaggle 输出
+## 6. Research Workflow v1.2 / 研究增强流程 v1.2
+
+Use this workflow when you want stronger experimental evidence beyond one train/validation run. It is designed for Kaggle GPU and a small research budget.
+
+当需要比单次 train/validation 更强的实验依据时，使用该流程。它面向 Kaggle GPU 和小预算研究训练。
+
+Run the full Kaggle research script:
+
+运行完整 Kaggle 研究脚本：
+
+```bash
+python notebooks/kaggle_research_v1_2.py
+```
+
+The script performs:
+
+脚本执行：
+
+- `pytest`
+- ISIC data preparation
+- dataset sanity check
+- 3-fold cross-validation
+- EfficientNet-B3 vs ResNet34 encoder comparison
+- threshold search
+- subgroup analysis on internal test and external validation data
+- statistical summary generation
+- research artifact packaging
+
+Main outputs:
+
+主要输出：
+
+```text
+/kaggle/working/research_v1_2/cross_validation/cross_validation_summary.md
+/kaggle/working/research_v1_2/encoder_comparison/encoder_comparison_summary.md
+/kaggle/working/research_v1_2/subgroup_analysis_test/subgroup_summary.md
+/kaggle/working/research_v1_2/subgroup_analysis_external/subgroup_summary.md
+/kaggle/working/research_v1_2/statistics_cv_encoder/statistical_analysis.md
+/kaggle/working/release_artifacts/medical-segmentation-research-artifacts-v1.2.zip
+```
+
+Do not replace the default local inference model until the v1.2 outputs have been reviewed.
+
+在审查 v1.2 输出前，不要替换默认本地推理模型。
+
+## 7. Downloading Kaggle Outputs / 下载 Kaggle 输出
 
 Required files:
 
@@ -244,7 +289,7 @@ Final model config:
 configs/final_model.yaml
 ```
 
-## 7. Local Prediction / 本地预测
+## 8. Local Prediction / 本地预测
 
 Use the final model:
 
@@ -270,7 +315,7 @@ Outputs:
 *_lesion_ratio.txt
 ```
 
-## 8. Running Gradio Demo / 运行 Gradio Demo
+## 9. Running Gradio Demo / 运行 Gradio Demo
 
 Start:
 
@@ -300,7 +345,7 @@ The Demo shows original image, predicted mask, overlay, lesion area ratio, infer
 
 Demo 会显示原图、预测 mask、叠加图、病灶面积比例、推理时间和当前设备。
 
-## 9. Evaluation / 评估
+## 10. Evaluation / 评估
 
 Evaluate the final model:
 
@@ -331,7 +376,7 @@ To evaluate an independent test split, add `test_images_dir` and `test_masks_dir
 
 如需评估独立测试集，请先在 YAML 的 `data` 中增加 `test_images_dir` 和 `test_masks_dir`，再使用 `--split test`。已完成的重复实验流程已经报告 ISIC 2017 独立测试集和 ISIC 2018 外部验证集指标。
 
-## 10. Completed Results / 已完成结果
+## 11. Completed Results / 已完成结果
 
 | Experiment | Model | Val Loss at Best Dice Epoch | Dice | IoU | Precision | Recall | Training Time | Inference Time |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | --- | --- |
@@ -383,7 +428,7 @@ Failure case analysis at threshold `0.35`:
 | ISIC 2017 test | 600 | 0.858912 | 0.778042 | 111 | 174 | 0 |
 | External ISIC 2018 | 1002 | 0.924017 | 0.870954 | 93 | 104 | 0 |
 
-## 11. Output Paths / 输出路径
+## 12. Output Paths / 输出路径
 
 Training curves:
 
@@ -419,7 +464,7 @@ docs/assets/sanity_check/dataset_overlay_01.png
 docs/assets/sanity_check/repeated_experiment/dataset_overlay_00_isic_0012940.png
 ```
 
-## 12. Troubleshooting / 常见问题
+## 13. Troubleshooting / 常见问题
 
 ### CUDA is unavailable / CUDA 不可用
 

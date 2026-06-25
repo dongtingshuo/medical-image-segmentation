@@ -76,6 +76,7 @@ The training pipeline includes:
 3. Quick train: verify the full training pipeline before long runs.
 4. Full training: train baseline and high-accuracy configurations on Kaggle GPU.
 5. Evaluation and export: save metrics, curves, samples, checkpoints.
+6. Research workflow: run 3-fold cross-validation, encoder comparison, subgroup analysis, and statistical summaries on Kaggle.
 
 ## 6. Experimental Setup / 实验设置
 
@@ -170,6 +171,7 @@ kaggle_outputs/repeated_experiment/repeated_experiments/benchmark/benchmark.csv
 kaggle_outputs/posthoc_analysis/posthoc_analysis/threshold_search/threshold_search.csv
 kaggle_outputs/posthoc_analysis/posthoc_analysis/failure_cases_test/failure_cases.csv
 kaggle_outputs/posthoc_analysis/posthoc_analysis/failure_cases_external/failure_cases.csv
+kaggle_outputs/research_v1_2/research_v1_2/  # populated after running notebooks/kaggle_research_v1_2.py
 ```
 
 Full Kaggle outputs are kept outside Git tracking. Representative documentation assets are copied to `docs/assets/`.
@@ -263,6 +265,30 @@ docs/assets/samples/repeated_experiment/
 ![High accuracy prediction sample](assets/samples/high_accuracy/sample_000_overlay.png)
 
 ![Repeated experiment prediction sample](assets/samples/repeated_experiment/sample_000_overlay.png)
+
+### 8.1 Research Workflow v1.2 / 研究增强流程 v1.2
+
+Version 1.2 implements the next research workflow but does not report numeric results until the Kaggle task is executed. The workflow includes:
+
+v1.2 已实现下一阶段研究流程，但在 Kaggle 任务实际完成前不填写数值结果。该流程包括：
+
+- 3-fold cross-validation on a materialized train+validation set with leakage checks.
+- Lightweight encoder comparison using U-Net++ with EfficientNet-B3 and ResNet34.
+- Threshold search for the selected encoder-comparison checkpoint.
+- Subgroup analysis on lesion size and image contrast for internal test and external validation splits.
+- Statistical summaries with mean, sample standard deviation, and 95% confidence intervals.
+
+Expected output files:
+
+预期输出文件：
+
+```text
+research_v1_2/cross_validation/cross_validation_summary.md
+research_v1_2/encoder_comparison/encoder_comparison_summary.md
+research_v1_2/subgroup_analysis_test/subgroup_summary.md
+research_v1_2/subgroup_analysis_external/subgroup_summary.md
+research_v1_2/statistics_cv_encoder/statistical_analysis.md
+```
 
 ## 9. Analysis / 结果分析
 
@@ -390,7 +416,8 @@ Limitations:
 
 - Repeated evaluation covers validation, independent ISIC 2017 test, and external ISIC 2018 splits, but it is still dataset-level engineering validation rather than clinical validation.
 - CPU/CUDA inference benchmarks were measured on Kaggle x86_64 and Tesla P100; local hardware may differ.
-- No cross-validation beyond the three random seeds, subgroup analysis, calibration study, reader study, or clinical validation is included.
+- Cross-validation, subgroup analysis, and statistical-summary code paths are implemented for v1.2, but new v1.2 numeric results are not reported until the Kaggle research workflow is executed.
+- Calibration study, reader study, and clinical validation are not included.
 - The legacy v1.0.0 checkpoint did not record complete package versions or a source commit.
 - The current overlay visualization displays predicted masks; true masks are saved separately.
 
@@ -398,8 +425,8 @@ Future work:
 
 后续工作：
 
-- Add cross-validation and confidence intervals beyond the current three-seed summary.
-- Add subgroup analysis for lesion size, contrast, body site, and imaging artifacts when metadata are available.
+- Run and publish the v1.2 Kaggle research workflow artifacts.
+- Extend subgroup analysis with body site and imaging-artifact metadata when available.
 - Compare more pretrained encoders.
 - Add post-processing for boundary refinement and small false-positive filtering.
 - Export ONNX or TorchScript models for deployment.

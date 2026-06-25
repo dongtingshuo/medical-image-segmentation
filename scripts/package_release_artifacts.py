@@ -31,6 +31,10 @@ DEFAULT_PATTERNS = (
     "posthoc_analysis/**/*.json",
     "posthoc_analysis/**/*.md",
     "posthoc_analysis/**/*.png",
+    "research_v1_2/**/*.csv",
+    "research_v1_2/**/*.json",
+    "research_v1_2/**/*.md",
+    "research_v1_2/**/*.png",
 )
 
 
