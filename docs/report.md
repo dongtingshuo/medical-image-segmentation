@@ -164,6 +164,9 @@ Results are read from:
 ```text
 kaggle_outputs/baseline_unet/outputs/experiment_results.csv
 kaggle_outputs/high_accuracy/outputs/experiment_results.csv
+kaggle_outputs/repeated_experiment/repeated_experiments/summary.csv
+kaggle_outputs/repeated_experiment/repeated_experiments/all_seed_metrics.csv
+kaggle_outputs/repeated_experiment/repeated_experiments/benchmark/benchmark.csv
 ```
 
 Full Kaggle outputs are kept outside Git tracking. Representative documentation assets are copied to `docs/assets/`.
@@ -186,6 +189,33 @@ Metric differences:
 | Precision | 0.904178 | 0.905242 | +0.001064 |
 | Recall | 0.836919 | 0.881161 | +0.044241 |
 
+Repeated high-accuracy evaluation:
+
+高精度模型重复实验：
+
+| Split | Runs | Dice mean ± std | IoU mean ± std | Precision mean ± std | Recall mean ± std | Boundary F1 mean ± std |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Validation | 3 | 0.870568 ± 0.004248 | 0.791262 ± 0.004706 | 0.918614 ± 0.023204 | 0.866186 ± 0.026165 | 0.511059 ± 0.013607 |
+| Independent test | 3 | 0.852301 ± 0.009611 | 0.769329 ± 0.012870 | 0.947166 ± 0.010456 | 0.815953 ± 0.022209 | 0.418462 ± 0.020804 |
+| External ISIC 2018 | 3 | 0.915828 ± 0.006676 | 0.857054 ± 0.011829 | 0.956375 ± 0.014224 | 0.895332 ± 0.025478 | 0.513946 ± 0.065410 |
+
+The best repeated run by validation Dice used seed `42`. The three runs stopped early at epochs 16, 15, and 24 for seeds 42, 123, and 2026 respectively.
+
+按验证集 Dice 选择的最佳重复实验 seed 为 `42`。三个 seed 分别在 epoch 16、15 和 24 通过 early stopping 结束。
+
+Inference benchmark for the best repeated checkpoint:
+
+最佳重复实验 checkpoint 推理基准：
+
+| Device | Mean latency | P95 latency | Throughput | Peak memory |
+| --- | ---: | ---: | ---: | ---: |
+| CPU x86_64 | 497.374 ms | 524.090 ms | 2.011 img/s | 1313.23 MB RSS |
+| CUDA Tesla P100-PCIE-16GB | 23.867 ms | 25.603 ms | 41.898 img/s | 151.85 MB allocated |
+
+Model parameters: `13,624,793`; model state size: `52.32 MB`; checkpoint size: `152.32 MB`.
+
+模型参数量为 `13,624,793`，模型 state 大小为 `52.32 MB`，checkpoint 大小为 `152.32 MB`。
+
 Training curves:
 
 训练曲线：
@@ -193,11 +223,14 @@ Training curves:
 ```text
 docs/assets/results/baseline_unet_training_curves.png
 docs/assets/results/high_accuracy_training_curves.png
+docs/assets/results/repeated_experiment/seed_42_training_curves.png
 ```
 
 ![Baseline U-Net training curves](assets/results/baseline_unet_training_curves.png)
 
 ![High accuracy training curves](assets/results/high_accuracy_training_curves.png)
+
+![Repeated experiment best seed training curves](assets/results/repeated_experiment/seed_42_training_curves.png)
 
 Prediction samples:
 
@@ -206,11 +239,14 @@ Prediction samples:
 ```text
 docs/assets/samples/baseline_unet/
 docs/assets/samples/high_accuracy/
+docs/assets/samples/repeated_experiment/
 ```
 
 ![Baseline U-Net prediction sample](assets/samples/baseline_unet/sample_000_overlay.png)
 
 ![High accuracy prediction sample](assets/samples/high_accuracy/sample_000_overlay.png)
+
+![Repeated experiment prediction sample](assets/samples/repeated_experiment/sample_000_overlay.png)
 
 ## 9. Analysis / 结果分析
 
@@ -228,11 +264,21 @@ The high-accuracy model reached Dice 0.872120 and IoU 0.792033. It improved the 
 
 ### 9.3 Overfitting and Underfitting / 过拟合与欠拟合
 
-Neither model shows underfitting. The high-accuracy model achieved strong validation performance from the first epoch due to the pretrained EfficientNet-B3 encoder. Both models show mild overfitting: training loss keeps decreasing while validation metrics plateau or fluctuate.
+Neither model shows underfitting. The high-accuracy model achieved strong validation performance early due to the pretrained EfficientNet-B3 encoder. The repeated runs show low validation Dice variability (`std = 0.004248`) and moderate test Dice variability (`std = 0.009611`). Training loss continues to decrease while validation metrics plateau or fluctuate, which indicates mild overfitting but not severe instability.
 
-两个模型均不存在明显欠拟合。高精度模型由于使用预训练 EfficientNet-B3 encoder，从第一个 epoch 起就获得较高验证指标。两个模型均有轻微过拟合：训练 loss 继续下降，但验证指标进入平台期或出现波动。
+两个模型均不存在明显欠拟合。高精度模型由于使用预训练 EfficientNet-B3 encoder，较早获得较高验证指标。重复实验的验证集 Dice 波动较小（`std = 0.004248`），测试集 Dice 波动中等（`std = 0.009611`）。训练 loss 继续下降但验证指标进入平台期或波动，说明存在轻微过拟合，但没有严重训练不稳定。
 
-### 9.4 Prediction Quality and Failure Cases / 预测质量与失败案例
+### 9.4 Independent and External Evaluation / 独立测试与外部验证
+
+The independent ISIC 2017 test split reached Dice `0.852301 ± 0.009611` and IoU `0.769329 ± 0.012870`, lower than validation Dice but still stable across seeds. Precision remains high (`0.947166 ± 0.010456`) while recall is lower (`0.815953 ± 0.022209`), indicating a conservative segmentation tendency on the internal test set.
+
+ISIC 2017 独立测试集达到 Dice `0.852301 ± 0.009611`、IoU `0.769329 ± 0.012870`，低于验证集但跨 seed 表现稳定。Precision 较高（`0.947166 ± 0.010456`），Recall 较低（`0.815953 ± 0.022209`），说明模型在内部测试集上更偏保守分割。
+
+The external ISIC 2018 split reached Dice `0.915828 ± 0.006676` and IoU `0.857054 ± 0.011829`. This result should be interpreted as an engineering external validation on the prepared Kaggle mirror, not as clinical generalization evidence. Dataset composition, preprocessing, and annotation differences can make cross-dataset scores higher or lower than the internal split.
+
+ISIC 2018 外部集达到 Dice `0.915828 ± 0.006676`、IoU `0.857054 ± 0.011829`。该结果应解释为基于 Kaggle 镜像和当前预处理流程的工程外部验证，而不是临床泛化证据。数据组成、预处理方式和标注差异都可能使跨数据集分数高于或低于内部划分。
+
+### 9.5 Prediction Quality and Failure Cases / 预测质量与失败案例
 
 The downloaded prediction samples do not show all-black or all-white masks. Predicted regions are concentrated around lesions, and no large false-positive regions are visible in the inspected overlays. The high-accuracy samples produce smoother and more aligned masks than the baseline samples.
 
@@ -253,7 +299,13 @@ Potential failure cases remain possible for very small lesions, low-contrast les
 
 潜在失败场景包括极小病灶、低对比度病灶、毛发遮挡、颜色伪影和标注噪声。目前输出中没有单独整理的失败案例集合。
 
-### 9.5 Improvement Directions / 改进方向
+### 9.6 Runtime and Deployment Characteristics / 运行时与部署特性
+
+The best repeated checkpoint contains 13.62M trainable parameters. On Kaggle Tesla P100, FP32 forward latency is 23.867 ms per 384x384 image, corresponding to 41.898 images/s. CPU inference remains usable for single-image local demo scenarios at 497.374 ms per image, but batch processing should prefer CUDA.
+
+最佳重复实验 checkpoint 包含 13.62M 可训练参数。在 Kaggle Tesla P100 上，384x384 单图 FP32 前向延迟为 23.867 ms，对应 41.898 images/s。CPU 单图推理为 497.374 ms，足够用于本地单图 demo，但批量处理更适合使用 CUDA。
+
+### 9.7 Improvement Directions / 改进方向
 
 - Learning rate: try `5e-5` for the high-accuracy model to reduce validation fluctuation.
 - Batch size: keep 8 when memory allows; use 4 if GPU memory is limited.
@@ -261,7 +313,7 @@ Potential failure cases remain possible for very small lesions, low-contrast les
 - Encoder: compare EfficientNet-B4, ResNet50, and ConvNeXt variants.
 - Loss: evaluate Focal + Dice for small-lesion recall.
 - Augmentation: add moderate color and geometric augmentation without distorting lesion appearance.
-- Epochs: keep early stopping; 20-30 maximum epochs may be enough for the high-accuracy model.
+- Epochs: keep early stopping; repeated runs stopped at 15-24 epochs, so 30 maximum epochs is usually enough unless a new encoder or dataset is introduced.
 
 ## 10. Deployment / 部署与本地运行
 
@@ -304,10 +356,9 @@ Limitations:
 
 局限性：
 
-- Inference time was not persisted in the Kaggle output files.
-- Evaluation is based on the available Kaggle validation split.
-- No independent external test set is included in the current results.
-- No cross-validation, repeated-seed confidence interval, subgroup analysis, calibration study, or clinical validation is included.
+- Repeated evaluation covers validation, independent ISIC 2017 test, and external ISIC 2018 splits, but it is still dataset-level engineering validation rather than clinical validation.
+- CPU/CUDA inference benchmarks were measured on Kaggle x86_64 and Tesla P100; local hardware may differ.
+- No cross-validation beyond the three random seeds, subgroup analysis, calibration study, reader study, or clinical validation is included.
 - The legacy v1.0.0 checkpoint did not record complete package versions or a source commit.
 - The current overlay visualization displays predicted masks; true masks are saved separately.
 
@@ -315,8 +366,8 @@ Future work:
 
 后续工作：
 
-- Add independent test set evaluation.
-- Add cross-validation and confidence intervals.
+- Add cross-validation and confidence intervals beyond the current three-seed summary.
+- Add subgroup analysis for lesion size, contrast, body site, and imaging artifacts when metadata are available.
 - Compare more pretrained encoders.
 - Add post-processing for boundary refinement and small false-positive filtering.
 - Export ONNX or TorchScript models for deployment.

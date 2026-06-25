@@ -330,19 +330,22 @@ Metrics:
 - Specificity: proportion of background pixels correctly rejected.
 - Boundary F1: boundary agreement within a configurable pixel tolerance.
 
-`evaluate.py --split test` is supported when `test_images_dir` and `test_masks_dir` are explicitly defined in the YAML config. The repository does not claim test-set results until those paths are supplied and evaluated.
+`evaluate.py --split test` is supported when `test_images_dir` and `test_masks_dir` are explicitly defined in the YAML config. The repeated evaluation workflow now reports an ISIC 2017 independent test split and an ISIC 2018 external validation split.
 
-当 YAML 明确定义 `test_images_dir` 和 `test_masks_dir` 时，可使用 `evaluate.py --split test`。在未提供并评估该划分前，仓库不声明测试集结果。
+当 YAML 明确定义 `test_images_dir` 和 `test_masks_dir` 时，可使用 `evaluate.py --split test`。重复实验流程已报告 ISIC 2017 独立测试集和 ISIC 2018 外部验证集结果。
 
 ## Results / 实验结果
 
-The following results are read from:
+The historical single-run results are read from:
 
-以下结果来自：
+历史单次训练结果来自：
 
 ```text
 kaggle_outputs/baseline_unet/outputs/experiment_results.csv
 kaggle_outputs/high_accuracy/outputs/experiment_results.csv
+kaggle_outputs/repeated_experiment/repeated_experiments/summary.csv
+kaggle_outputs/repeated_experiment/repeated_experiments/all_seed_metrics.csv
+kaggle_outputs/repeated_experiment/repeated_experiments/benchmark/benchmark.csv
 ```
 
 The full Kaggle outputs are kept outside Git tracking. A small set of representative curves, prediction samples, and sanity-check images is stored under `docs/assets/` for repository documentation.
@@ -365,6 +368,41 @@ Metric improvement of the high-accuracy model over baseline:
 | Precision | 0.904178 | 0.905242 | +0.001064 |
 | Recall | 0.836919 | 0.881161 | +0.044241 |
 
+### Repeated Evaluation / 重复实验评估
+
+The repeated workflow trained the high-accuracy U-Net++ EfficientNet-B3 configuration with three random seeds (`42`, `123`, `2026`) on Kaggle GPU. It evaluates validation, independent ISIC 2017 test, and external ISIC 2018 splits. Mean and standard deviation use sample standard deviation over the three runs.
+
+重复实验在 Kaggle GPU 上使用三个随机种子（`42`、`123`、`2026`）训练高精度 U-Net++ EfficientNet-B3 配置，并评估验证集、ISIC 2017 独立测试集和 ISIC 2018 外部验证集。均值和标准差基于三次运行的样本标准差。
+
+| Split | Dice mean ± std | IoU mean ± std | Precision mean ± std | Recall mean ± std | Boundary F1 mean ± std |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Validation | 0.870568 ± 0.004248 | 0.791262 ± 0.004706 | 0.918614 ± 0.023204 | 0.866186 ± 0.026165 | 0.511059 ± 0.013607 |
+| Independent test | 0.852301 ± 0.009611 | 0.769329 ± 0.012870 | 0.947166 ± 0.010456 | 0.815953 ± 0.022209 | 0.418462 ± 0.020804 |
+| External ISIC 2018 | 0.915828 ± 0.006676 | 0.857054 ± 0.011829 | 0.956375 ± 0.014224 | 0.895332 ± 0.025478 | 0.513946 ± 0.065410 |
+
+Best seed by validation Dice: `42`.
+
+验证集 Dice 最优随机种子：`42`。
+
+### Inference Benchmark / 推理性能
+
+The benchmark uses the best repeated seed checkpoint, FP32 forward pass, batch size 1, and 384x384 input. Timing excludes model loading and preprocessing.
+
+推理基准使用重复实验中的最佳 seed checkpoint，FP32 前向传播，batch size 1，输入尺寸 384x384。计时不包含模型加载和预处理。
+
+| Device | Mean latency | P95 latency | Throughput | Peak memory |
+| --- | ---: | ---: | ---: | ---: |
+| CPU x86_64 | 497.374 ms | 524.090 ms | 2.011 img/s | 1313.23 MB RSS |
+| CUDA Tesla P100-PCIE-16GB | 23.867 ms | 25.603 ms | 41.898 img/s | 151.85 MB allocated |
+
+Model size:
+
+模型规模：
+
+- Parameters: `13,624,793`
+- Model state size: `52.32 MB`
+- Checkpoint size: `152.32 MB`
+
 ## Visualization / 可视化结果
 
 Training curves:
@@ -374,11 +412,14 @@ Training curves:
 ```text
 docs/assets/results/baseline_unet_training_curves.png
 docs/assets/results/high_accuracy_training_curves.png
+docs/assets/results/repeated_experiment/seed_42_training_curves.png
 ```
 
 ![Baseline U-Net training curves](docs/assets/results/baseline_unet_training_curves.png)
 
 ![High accuracy training curves](docs/assets/results/high_accuracy_training_curves.png)
+
+![Repeated experiment best seed training curves](docs/assets/results/repeated_experiment/seed_42_training_curves.png)
 
 Prediction samples:
 
@@ -389,6 +430,7 @@ docs/assets/samples/baseline_unet/sample_000_overlay.png
 docs/assets/samples/baseline_unet/sample_001_overlay.png
 docs/assets/samples/high_accuracy/sample_000_overlay.png
 docs/assets/samples/high_accuracy/sample_001_overlay.png
+docs/assets/samples/repeated_experiment/sample_000_overlay.png
 ```
 
 ![Baseline U-Net prediction sample 0](docs/assets/samples/baseline_unet/sample_000_overlay.png)
@@ -399,6 +441,8 @@ docs/assets/samples/high_accuracy/sample_001_overlay.png
 
 ![High accuracy prediction sample 1](docs/assets/samples/high_accuracy/sample_001_overlay.png)
 
+![Repeated experiment prediction sample](docs/assets/samples/repeated_experiment/sample_000_overlay.png)
+
 Sanity check report:
 
 数据检查报告：
@@ -407,6 +451,7 @@ Sanity check report:
 docs/assets/sanity_check/dataset_check_report.md
 docs/assets/sanity_check/dataset_overlay_00.png
 docs/assets/sanity_check/dataset_overlay_01.png
+docs/assets/sanity_check/repeated_experiment/dataset_overlay_00_isic_0012940.png
 ```
 
 High-accuracy dataset check summary:
@@ -439,10 +484,10 @@ checkpoints/best_model.pth
 
 ## Current Limitations / 当前限制
 
-- Current reported metrics are based on the available Kaggle validation split. / 当前指标基于已有 Kaggle 验证集划分。
+- Current repeated metrics cover validation, independent ISIC 2017 test, and external ISIC 2018 splits, but they are still dataset-level engineering metrics rather than clinical validation. / 当前重复实验指标覆盖验证集、ISIC 2017 独立测试集和 ISIC 2018 外部集，但仍属于数据集级工程评估，不是临床验证。
 - The v1.0.0 checkpoint did not persist complete package versions or a source commit; the manifest records these fields as unavailable. / v1.0.0 checkpoint 未保存完整依赖版本和源码 commit，manifest 已将这些字段标记为不可用。
-- No external test, cross-validation, subgroup, or clinical validation has been completed. / 尚未完成外部测试、交叉验证、子组分析或临床验证。
-- Inference time was not persisted in the Kaggle output files and is therefore reported as `Not available`. / Kaggle 输出文件未持久化推理时间，因此该字段记为 `Not available`。
+- No cross-validation, subgroup analysis, calibration study, reader study, or clinical validation has been completed. / 尚未完成交叉验证、子组分析、校准研究、读者实验或临床验证。
+- CPU/CUDA inference benchmarks were measured on Kaggle x86_64 and Tesla P100; timings may differ on local hardware. / CPU/CUDA 推理基准在 Kaggle x86_64 和 Tesla P100 上测得，本地硬件耗时可能不同。
 - The high-accuracy model shows mild overfitting after the best epoch. / 高精度模型在最佳 epoch 后出现轻微过拟合。
 - Toy demo results do not represent real medical performance. / toy demo 结果不代表真实医学性能。
 - Full training requires real medical datasets and GPU resources. / 完整训练需要真实医学图像数据集和 GPU 资源。
@@ -458,7 +503,8 @@ This project is intended only for medical image segmentation experiments and eng
 
 ## Future Work / 后续改进
 
-- Add external test set evaluation and cross-validation.
+- Add cross-validation and confidence intervals beyond the three-seed summary.
+- Add subgroup analysis for lesion size, contrast, body site, and artifact level when metadata are available.
 - Compare additional encoders such as EfficientNet-B4, ResNet50, and ConvNeXt variants.
 - Evaluate Focal + Dice loss for small-lesion recall.
 - Add post-processing options for boundary smoothing or small false-positive removal.

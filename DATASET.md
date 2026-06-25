@@ -14,28 +14,29 @@ The project does not redistribute the medical dataset.
 
 本项目不再分发医疗数据集。
 
-## Split Used / 已使用划分
+## Splits Used / 已使用划分
 
 | Split | Images | Masks | Used for reported metrics |
 | --- | ---: | ---: | --- |
 | Train | 2000 | 2000 | Training |
-| Validation | 150 | 150 | Model selection and reported metrics |
-| Test | Not evaluated | Not evaluated | No |
+| Validation | 150 | 150 | Model selection and validation metrics |
+| Independent test | 600 | 600 | Repeated-seed internal test metrics |
+| External test | 1002 | 1002 | External validation metrics from ISIC 2018 Task 1 |
 
-The repository currently reports validation results only. The test split was not evaluated, and no test metric is claimed.
+The repeated evaluation workflow uses the ISIC 2017 train/validation/test split as the internal dataset and an ISIC 2018 Task 1 Kaggle mirror as an external validation set. The external split is prepared by normalized image/mask ID matching and excludes sample IDs already present in the internal dataset.
 
-仓库当前仅报告验证集结果；未评估 test split，也不声明任何测试集指标。
+重复实验流程使用 ISIC 2017 的 train/validation/test 作为内部数据集，并使用 ISIC 2018 Task 1 Kaggle 镜像作为外部验证集。外部数据通过规范化 image/mask ID 匹配生成，并排除已经出现在内部数据集中的样本 ID。
 
 ## Integrity Checks / 完整性检查
 
 - Exact image/mask filename-stem matching.
-- 2000/2000 training pairs and 150/150 validation pairs.
+- 2000/2000 training pairs, 150/150 validation pairs, 600/600 internal test pairs, and 1002/1002 external pairs.
 - No invalid binary masks or image/mask size mismatches in the saved sanity report.
 - Mean foreground ratio: `0.192484`.
 
-Saved evidence is available under `docs/assets/sanity_check/`.
+Saved evidence is available under `docs/assets/sanity_check/` and `docs/assets/sanity_check/repeated_experiment/`.
 
-检查证据保存在 `docs/assets/sanity_check/`。
+检查证据保存在 `docs/assets/sanity_check/` 和 `docs/assets/sanity_check/repeated_experiment/`。
 
 ## Licensing and Responsible Use / 授权与责任使用
 

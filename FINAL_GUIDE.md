@@ -328,9 +328,9 @@ Metrics:
 - Boundary F1
 - Mean validation loss
 
-To evaluate an independent test split, add `test_images_dir` and `test_masks_dir` under `data` in a YAML config, then run with `--split test`. No test-set result is currently claimed.
+To evaluate an independent test split, add `test_images_dir` and `test_masks_dir` under `data` in a YAML config, then run with `--split test`. The completed repeated workflow already reports ISIC 2017 independent test metrics and ISIC 2018 external validation metrics.
 
-如需评估独立测试集，请先在 YAML 的 `data` 中增加 `test_images_dir` 和 `test_masks_dir`，再使用 `--split test`。当前项目不声明任何测试集结果。
+如需评估独立测试集，请先在 YAML 的 `data` 中增加 `test_images_dir` 和 `test_masks_dir`，再使用 `--split test`。已完成的重复实验流程已经报告 ISIC 2017 独立测试集和 ISIC 2018 外部验证集指标。
 
 ## 10. Completed Results / 已完成结果
 
@@ -343,6 +343,29 @@ The default model is the high-accuracy model because it has higher Dice, IoU, an
 
 默认模型为高精度模型，因为其 Dice、IoU 和 Recall 更高。
 
+Repeated high-accuracy evaluation:
+
+高精度模型重复实验：
+
+| Split | Dice mean ± std | IoU mean ± std | Precision mean ± std | Recall mean ± std |
+| --- | ---: | ---: | ---: | ---: |
+| Validation | 0.870568 ± 0.004248 | 0.791262 ± 0.004706 | 0.918614 ± 0.023204 | 0.866186 ± 0.026165 |
+| Independent test | 0.852301 ± 0.009611 | 0.769329 ± 0.012870 | 0.947166 ± 0.010456 | 0.815953 ± 0.022209 |
+| External ISIC 2018 | 0.915828 ± 0.006676 | 0.857054 ± 0.011829 | 0.956375 ± 0.014224 | 0.895332 ± 0.025478 |
+
+Inference benchmark for the best repeated checkpoint:
+
+最佳重复实验 checkpoint 推理基准：
+
+| Device | Mean latency | P95 latency | Throughput | Peak memory |
+| --- | ---: | ---: | ---: | ---: |
+| CPU x86_64 | 497.374 ms | 524.090 ms | 2.011 img/s | 1313.23 MB RSS |
+| CUDA Tesla P100-PCIE-16GB | 23.867 ms | 25.603 ms | 41.898 img/s | 151.85 MB allocated |
+
+Model parameters: `13,624,793`; model state size: `52.32 MB`; checkpoint size: `152.32 MB`.
+
+模型参数量：`13,624,793`；模型 state 大小：`52.32 MB`；checkpoint 大小：`152.32 MB`。
+
 ## 11. Output Paths / 输出路径
 
 Training curves:
@@ -352,6 +375,7 @@ Training curves:
 ```text
 docs/assets/results/baseline_unet_training_curves.png
 docs/assets/results/high_accuracy_training_curves.png
+docs/assets/results/repeated_experiment/seed_42_training_curves.png
 ```
 
 Prediction samples:
@@ -361,6 +385,7 @@ Prediction samples:
 ```text
 docs/assets/samples/baseline_unet/
 docs/assets/samples/high_accuracy/
+docs/assets/samples/repeated_experiment/
 ```
 
 Sanity check:
@@ -371,6 +396,7 @@ Sanity check:
 docs/assets/sanity_check/dataset_check_report.md
 docs/assets/sanity_check/dataset_overlay_00.png
 docs/assets/sanity_check/dataset_overlay_01.png
+docs/assets/sanity_check/repeated_experiment/dataset_overlay_00_isic_0012940.png
 ```
 
 ## 12. Troubleshooting / 常见问题
