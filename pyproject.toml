@@ -18,5 +18,5 @@ ignore = ["E501", "B905"]
 
 [tool.pyright]
 pythonVersion = "3.10"
-include = ["src", "scripts", "tests", "train.py", "evaluate.py", "predict.py", "app.py"]
+include = ["src", "scripts", "tests", "train.py", "evaluate.py", "predict.py", "batch_predict.py", "export.py", "app.py"]
 exclude = ["kaggle_outputs", "kaggle_*_kernel", "kaggle_project_dataset"]

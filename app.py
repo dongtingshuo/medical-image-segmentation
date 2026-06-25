@@ -1,3 +1,5 @@
+import argparse
+
 import gradio as gr
 import numpy as np
 
@@ -71,5 +73,14 @@ def build_app():
     return demo.queue(default_concurrency_limit=1)
 
 
+def main():
+    parser = argparse.ArgumentParser(description="Launch the Gradio skin lesion segmentation demo.")
+    parser.add_argument("--server-name", default=None)
+    parser.add_argument("--server-port", type=int, default=None)
+    parser.add_argument("--share", action="store_true")
+    args = parser.parse_args()
+    build_app().launch(server_name=args.server_name, server_port=args.server_port, share=args.share)
+
+
 if __name__ == "__main__":
-    build_app().launch()
+    main()

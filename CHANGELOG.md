@@ -1,5 +1,12 @@
 # Changelog / 变更记录
 
+## Unreleased / 未发布
+
+- Added `batch_predict.py` for directory-level inference with masks, overlays, lesion ratios, CSV, and JSON summaries.
+- Added `export.py` for TorchScript and ONNX export with manifest and SHA256 checksums.
+- Added Docker CPU demo runtime for the Gradio application.
+- Added deployment-oriented tests for export and batch prediction workflows.
+
 ## v1.2.0 - 2026-06-25
 
 This release adds and reports the Kaggle research workflow for robustness analysis without changing the default inference checkpoint.

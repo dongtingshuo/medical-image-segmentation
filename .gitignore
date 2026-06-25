@@ -28,6 +28,7 @@ outputs/sanity_check/**
 checkpoints/*
 !checkpoints/README.md
 !checkpoints/.gitkeep
+exports/
 *.pth
 *.pt
 *.ckpt

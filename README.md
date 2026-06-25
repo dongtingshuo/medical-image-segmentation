@@ -7,9 +7,9 @@
 **English:** Skin lesion segmentation with improved U-Net models.  
 **中文：** 基于 U-Net 改进模型的皮肤病灶图像分割系统。
 
-This repository implements a PyTorch-based binary medical image segmentation pipeline for skin lesion images. It supports U-Net, Attention U-Net, U-Net++, DeepLabV3+, Kaggle GPU training, local CPU/CUDA inference, metric evaluation, prediction visualization, and a Gradio Web Demo.
+This repository implements a PyTorch-based binary medical image segmentation pipeline for skin lesion images. It supports U-Net, Attention U-Net, U-Net++, DeepLabV3+, Kaggle GPU training, local CPU/CUDA inference, batch prediction, metric evaluation, prediction visualization, ONNX/TorchScript export, Docker deployment, and a Gradio Web Demo.
 
-本项目实现了一个基于 PyTorch 的皮肤病灶二分类医学图像分割流程，支持 U-Net、Attention U-Net、U-Net++、DeepLabV3+、Kaggle GPU 训练、本地 CPU/CUDA 推理、指标评估、预测可视化和 Gradio Web Demo。
+本项目实现了一个基于 PyTorch 的皮肤病灶二分类医学图像分割流程，支持 U-Net、Attention U-Net、U-Net++、DeepLabV3+、Kaggle GPU 训练、本地 CPU/CUDA 推理、批量预测、指标评估、预测可视化、ONNX/TorchScript 导出、Docker 部署和 Gradio Web Demo。
 
 ## Overview / 项目概述
 
@@ -38,7 +38,10 @@ Config: configs/final_model.yaml
 - Dice, IoU, Precision, Recall, Specificity, and Boundary F1 evaluation / Dice、IoU、Precision、Recall、Specificity 与 Boundary F1 评估
 - Model comparison and loss comparison / 模型对比与损失函数对比
 - Prediction visualization with masks and overlays / mask 与叠加图可视化
+- Single-image and batch prediction with CSV reports / 单图预测与批量预测 CSV 报告
 - Overlay visualization and false-positive/false-negative maps / 叠加可视化与误检、漏检图
+- ONNX and TorchScript export with manifest and SHA256 checksums / ONNX 与 TorchScript 导出，包含 manifest 和 SHA256 校验
+- Dockerized CPU demo runtime / Docker CPU demo 运行环境
 - Segmentation error analysis / 分割错误分析
 - Cross-validation, encoder comparison, subgroup analysis, and statistical summaries / 交叉验证、encoder 对比、子组分析和统计汇总
 - Lightweight toy segmentation demo / 轻量分割演示
@@ -61,7 +64,10 @@ tests/                   Unit tests independent of real datasets
 train.py                 Training entry point
 evaluate.py              Evaluation entry point
 predict.py               Single-image prediction
+batch_predict.py         Directory-level batch prediction and CSV report
+export.py                ONNX and TorchScript export
 app.py                   Gradio Web Demo
+Dockerfile               Containerized Gradio runtime
 ```
 
 ## Documentation / 文档
@@ -102,7 +108,9 @@ flowchart TD
     F --> I["Curves and Samples"]
     G --> J["evaluate.py"]
     G --> K["predict.py"]
-    G --> L["Gradio Demo"]
+    G --> L["batch_predict.py"]
+    G --> M["export.py"]
+    G --> N["Gradio Demo / Docker"]
 ```
 
 ## Environment Setup / 环境配置
@@ -381,6 +389,40 @@ python predict.py \
   --device auto
 ```
 
+Batch prediction:
+
+批量预测：
+
+```bash
+python batch_predict.py \
+  --config configs/final_model.yaml \
+  --checkpoint checkpoints/best_model.pth \
+  --input-dir path/to/images \
+  --output outputs/batch_predictions \
+  --device auto
+```
+
+Batch prediction writes resized images, predicted masks, overlays, lesion area ratios, `batch_predictions.csv`, and `batch_summary.json`.
+
+批量预测会输出 resize 后原图、预测 mask、overlay、病灶面积比例、`batch_predictions.csv` 和 `batch_summary.json`。
+
+Model export:
+
+模型导出：
+
+```bash
+python export.py \
+  --config configs/final_model.yaml \
+  --checkpoint checkpoints/best_model.pth \
+  --output-dir exports/final_model \
+  --formats torchscript,onnx \
+  --device cpu
+```
+
+Exported models output logits. Apply sigmoid and thresholding in the serving layer.
+
+导出的模型输出 logits。部署服务层需要自行执行 sigmoid 和 threshold。
+
 Gradio Demo:
 
 Gradio 演示：
@@ -392,6 +434,21 @@ python app.py
 The project supports CPU/CUDA automatic device selection. If CUDA is unavailable, local prediction and the Gradio Demo run on CPU.
 
 项目支持 CPU/CUDA 自动选择。若 CUDA 不可用，本地预测和 Gradio Demo 会使用 CPU。
+
+Docker CPU demo:
+
+Docker CPU 演示：
+
+```bash
+docker build -t medical-image-segmentation .
+docker run --rm -p 7860:7860 \
+  -v "$PWD/checkpoints:/app/checkpoints" \
+  medical-image-segmentation
+```
+
+Then open `http://localhost:7860`. Place `best_model.pth` in `checkpoints/` before starting the container.
+
+然后打开 `http://localhost:7860`。启动容器前请先将 `best_model.pth` 放入 `checkpoints/`。
 
 ## Evaluation / 评估
 
@@ -673,13 +730,11 @@ This project is intended only for medical image segmentation experiments and eng
 
 ## Future Work / 后续改进
 
-- Publish the sanitized v1.2 research artifact package as a GitHub Release asset.
 - Extend subgroup analysis with body site and artifact metadata when available.
 - Compare additional encoders such as EfficientNet-B4, ResNet50, and ConvNeXt variants.
 - Evaluate Focal + Dice loss for small-lesion recall.
 - Add post-processing options for boundary smoothing or small false-positive removal.
-- Export ONNX or TorchScript models for deployment.
-- Add batch prediction and structured report export.
+- Add GPU-oriented serving benchmarks for exported ONNX/TorchScript artifacts.
 
 ## License / 许可证
 

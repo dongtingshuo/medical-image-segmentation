@@ -20,6 +20,8 @@ English:
 - Gradio
 - PyYAML
 - pytest
+- ONNX export
+- Docker
 - segmentation-models-pytorch as an optional high-capacity model dependency / `segmentation-models-pytorch` 作为可选高容量模型依赖
 
 ## Development Rules / 开发规则
@@ -55,7 +57,10 @@ python scripts/check_dataset.py --config configs/debug_local.yaml
 python train.py --config configs/unet.yaml
 python evaluate.py --config configs/final_model.yaml --checkpoint checkpoints/best_model.pth --split val
 python predict.py --config configs/final_model.yaml --checkpoint checkpoints/best_model.pth --image path/to/image.jpg
+python batch_predict.py --config configs/final_model.yaml --checkpoint checkpoints/best_model.pth --input-dir path/to/images
+python export.py --config configs/final_model.yaml --checkpoint checkpoints/best_model.pth --formats torchscript,onnx
 python app.py
+docker build -t medical-image-segmentation .
 ```
 
 ## Directory Guide / 目录说明

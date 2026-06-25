@@ -1,7 +1,6 @@
 from pathlib import Path
 
 import cv2
-import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
@@ -99,6 +98,8 @@ def save_prediction_result(image_rgb, pred_mask, output_dir, prefix="prediction"
 
 
 def plot_training_curves(history, output_path):
+    import matplotlib.pyplot as plt
+
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     epochs = history.get("epoch", list(range(1, len(history.get("train_loss", [])) + 1)))

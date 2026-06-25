@@ -456,12 +456,45 @@ Local prediction:
 python predict.py --config configs/final_model.yaml --checkpoint checkpoints/best_model.pth --image path/to/image.jpg
 ```
 
+Batch prediction:
+
+批量预测：
+
+```bash
+python batch_predict.py --config configs/final_model.yaml --checkpoint checkpoints/best_model.pth --input-dir path/to/images
+```
+
+The batch workflow exports masks, overlays, lesion area ratios, `batch_predictions.csv`, and `batch_summary.json`.
+
+批量流程会导出 mask、overlay、病灶面积比例、`batch_predictions.csv` 和 `batch_summary.json`。
+
+Model export:
+
+模型导出：
+
+```bash
+python export.py --config configs/final_model.yaml --checkpoint checkpoints/best_model.pth --formats torchscript,onnx
+```
+
+The exported TorchScript and ONNX models output logits. Sigmoid and thresholding remain in the serving or post-processing layer.
+
+导出的 TorchScript 和 ONNX 模型输出 logits。sigmoid 和 threshold 仍位于服务端或后处理层。
+
 Gradio Demo:
 
 Gradio 演示：
 
 ```bash
 python app.py
+```
+
+Docker Demo:
+
+Docker 演示：
+
+```bash
+docker build -t medical-image-segmentation .
+docker run --rm -p 7860:7860 -v "$PWD/checkpoints:/app/checkpoints" medical-image-segmentation
 ```
 
 The local runtime supports CPU/CUDA automatic selection. The high-accuracy model requires `segmentation-models-pytorch`.
@@ -489,8 +522,7 @@ Future work:
 - Extend subgroup analysis with body site and imaging-artifact metadata when available.
 - Compare more pretrained encoders.
 - Add post-processing for boundary refinement and small false-positive filtering.
-- Export ONNX or TorchScript models for deployment.
-- Add batch prediction and structured report export.
+- Add deployment benchmarks for ONNX Runtime and TorchScript runtimes.
 
 ## 12. Medical Disclaimer / 医学免责声明
 

@@ -351,7 +351,72 @@ Outputs:
 *_lesion_ratio.txt
 ```
 
-## 9. Running Gradio Demo / 运行 Gradio Demo
+## 9. Batch Prediction / 批量预测
+
+Run inference on a folder:
+
+对一个图片目录执行推理：
+
+```bash
+python batch_predict.py \
+  --config configs/final_model.yaml \
+  --checkpoint checkpoints/best_model.pth \
+  --input-dir path/to/images \
+  --output outputs/batch_predictions \
+  --device auto
+```
+
+Use `--recursive` when images are stored in nested folders. Supported image extensions are `jpg`, `jpeg`, and `png` by default.
+
+如果图片在多层目录中，加入 `--recursive`。默认支持 `jpg`、`jpeg` 和 `png`。
+
+Outputs:
+
+输出：
+
+```text
+outputs/batch_predictions/*_image.png
+outputs/batch_predictions/*_pred_mask.png
+outputs/batch_predictions/*_overlay.png
+outputs/batch_predictions/*_lesion_ratio.txt
+outputs/batch_predictions/batch_predictions.csv
+outputs/batch_predictions/batch_summary.json
+```
+
+The CSV records image path, status, lesion area ratio, inference time, device, model name, checkpoint epoch, and output paths.
+
+CSV 会记录图片路径、状态、病灶面积比例、推理时间、设备、模型名称、checkpoint epoch 和输出路径。
+
+## 10. Model Export / 模型导出
+
+Export the final model to TorchScript and ONNX:
+
+导出最终模型为 TorchScript 和 ONNX：
+
+```bash
+python export.py \
+  --config configs/final_model.yaml \
+  --checkpoint checkpoints/best_model.pth \
+  --output-dir exports/final_model \
+  --formats torchscript,onnx \
+  --device cpu
+```
+
+Outputs:
+
+输出：
+
+```text
+exports/final_model/model_torchscript.pt
+exports/final_model/model.onnx
+exports/final_model/export_manifest.json
+```
+
+The exported model returns one-channel logits. In deployment code, apply sigmoid and threshold after inference.
+
+导出的模型返回单通道 logits。部署代码中需要在推理后执行 sigmoid 和 threshold。
+
+## 11. Running Gradio Demo / 运行 Gradio Demo
 
 Start:
 
@@ -381,7 +446,40 @@ The Demo shows original image, predicted mask, overlay, lesion area ratio, infer
 
 Demo 会显示原图、预测 mask、叠加图、病灶面积比例、推理时间和当前设备。
 
-## 10. Evaluation / 评估
+## 12. Docker Demo / Docker 演示
+
+Build the image:
+
+构建镜像：
+
+```bash
+docker build -t medical-image-segmentation .
+```
+
+Run the CPU Gradio demo:
+
+运行 CPU Gradio Demo：
+
+```bash
+docker run --rm -p 7860:7860 \
+  -v "$PWD/checkpoints:/app/checkpoints" \
+  -v "$PWD/outputs:/app/outputs" \
+  medical-image-segmentation
+```
+
+Open:
+
+打开：
+
+```text
+http://localhost:7860
+```
+
+Place `best_model.pth` in `checkpoints/` before starting the container. The default container is intended for CPU inference and demo use, not Kaggle training.
+
+启动容器前请先将 `best_model.pth` 放入 `checkpoints/`。默认容器面向 CPU 推理和 Demo，不用于 Kaggle 训练。
+
+## 13. Evaluation / 评估
 
 Evaluate the final model:
 
@@ -412,7 +510,7 @@ To evaluate an independent test split, add `test_images_dir` and `test_masks_dir
 
 如需评估独立测试集，请先在 YAML 的 `data` 中增加 `test_images_dir` 和 `test_masks_dir`，再使用 `--split test`。已完成的重复实验流程已经报告 ISIC 2017 独立测试集和 ISIC 2018 外部验证集指标。
 
-## 11. Completed Results / 已完成结果
+## 14. Completed Results / 已完成结果
 
 | Experiment | Model | Val Loss at Best Dice Epoch | Dice | IoU | Precision | Recall | Training Time | Inference Time |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | --- | --- |
@@ -478,7 +576,7 @@ Failure case analysis at threshold `0.35`:
 | ISIC 2017 test | 600 | 0.858912 | 0.778042 | 111 | 174 | 0 |
 | External ISIC 2018 | 1002 | 0.924017 | 0.870954 | 93 | 104 | 0 |
 
-## 12. Output Paths / 输出路径
+## 15. Output Paths / 输出路径
 
 Training curves:
 
@@ -518,7 +616,7 @@ docs/assets/sanity_check/repeated_experiment/dataset_overlay_00_isic_0012940.png
 docs/assets/sanity_check/research_v1_2/dataset_overlay_00_isic_0012940.png
 ```
 
-## 13. Troubleshooting / 常见问题
+## 16. Troubleshooting / 常见问题
 
 ### CUDA is unavailable / CUDA 不可用
 
@@ -567,6 +665,34 @@ pip install segmentation-models-pytorch
 Try lowering the threshold to `0.3`, verify checkpoint/config matching, and confirm preprocessing uses the same image size.
 
 可尝试将 threshold 降到 `0.3`，检查 checkpoint/config 是否匹配，并确认预处理尺寸一致。
+
+### ONNX export fails / ONNX 导出失败
+
+Install the pinned dependencies first:
+
+先安装锁定依赖：
+
+```bash
+pip install -r requirements.txt
+```
+
+If the error mentions `onnx`, install it explicitly:
+
+如果错误提示 `onnx`，可单独安装：
+
+```bash
+pip install onnx
+```
+
+### Docker cannot find checkpoint / Docker 找不到 checkpoint
+
+Mount the local `checkpoints/` directory into the container:
+
+将本地 `checkpoints/` 目录挂载到容器：
+
+```bash
+docker run --rm -p 7860:7860 -v "$PWD/checkpoints:/app/checkpoints" medical-image-segmentation
+```
 
 ### Validation metrics fluctuate / 验证指标波动
 
