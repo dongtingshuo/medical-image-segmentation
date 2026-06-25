@@ -40,6 +40,39 @@ def get_train_transforms(config):
             transforms.append(A.ShiftScaleRotate(shift_limit=0.05, scale_limit=0.1, rotate_limit=20, p=0.5))
         if aug_cfg.get("color_jitter", True):
             transforms.append(A.RandomBrightnessContrast(p=0.3))
+        low_contrast_cfg = aug_cfg.get("low_contrast", {})
+        if low_contrast_cfg.get("enabled", False):
+            if low_contrast_cfg.get("clahe", True):
+                transforms.append(
+                    A.CLAHE(
+                        clip_limit=tuple(low_contrast_cfg.get("clahe_clip_limit", (1.0, 4.0))),
+                        tile_grid_size=tuple(low_contrast_cfg.get("clahe_tile_grid_size", (8, 8))),
+                        p=float(low_contrast_cfg.get("clahe_p", 0.35)),
+                    )
+                )
+            if low_contrast_cfg.get("random_gamma", True):
+                transforms.append(
+                    A.RandomGamma(
+                        gamma_limit=tuple(low_contrast_cfg.get("gamma_limit", (70, 130))),
+                        p=float(low_contrast_cfg.get("gamma_p", 0.35)),
+                    )
+                )
+            if low_contrast_cfg.get("brightness_contrast", True):
+                transforms.append(
+                    A.RandomBrightnessContrast(
+                        brightness_limit=float(low_contrast_cfg.get("brightness_limit", 0.18)),
+                        contrast_limit=float(low_contrast_cfg.get("contrast_limit", 0.35)),
+                        p=float(low_contrast_cfg.get("brightness_contrast_p", 0.45)),
+                    )
+                )
+            if low_contrast_cfg.get("simulate_low_contrast", True):
+                transforms.append(
+                    A.RandomBrightnessContrast(
+                        brightness_limit=tuple(low_contrast_cfg.get("simulate_brightness_limit", (-0.05, 0.05))),
+                        contrast_limit=tuple(low_contrast_cfg.get("simulate_contrast_limit", (-0.50, -0.15))),
+                        p=float(low_contrast_cfg.get("simulate_p", 0.35)),
+                    )
+                )
     transforms.append(A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)))
     compose = A.Compose(transforms)
     if hasattr(compose, "set_random_seed"):

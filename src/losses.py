@@ -54,6 +54,25 @@ class FocalDiceLoss(nn.Module):
         return 0.5 * self.focal(logits, targets) + 0.5 * self.dice(logits, targets)
 
 
+class TverskyLoss(nn.Module):
+    def __init__(self, alpha=0.3, beta=0.7, smooth=1.0):
+        super().__init__()
+        self.alpha = alpha
+        self.beta = beta
+        self.smooth = smooth
+
+    def forward(self, logits, targets):
+        probs = torch.sigmoid(logits).contiguous().view(logits.size(0), -1)
+        targets = targets.contiguous().view(targets.size(0), -1)
+        true_positive = (probs * targets).sum(dim=1)
+        false_positive = (probs * (1.0 - targets)).sum(dim=1)
+        false_negative = ((1.0 - probs) * targets).sum(dim=1)
+        tversky = (true_positive + self.smooth) / (
+            true_positive + self.alpha * false_positive + self.beta * false_negative + self.smooth
+        )
+        return 1.0 - tversky.mean()
+
+
 def get_loss(loss_name):
     name = str(loss_name).lower()
     if name == "bce":
@@ -66,6 +85,8 @@ def get_loss(loss_name):
         return FocalLoss()
     if name == "focal_dice":
         return FocalDiceLoss()
+    if name == "tversky":
+        return TverskyLoss()
     raise ValueError(f"Unsupported loss_name: {loss_name}")
 
 
@@ -93,5 +114,11 @@ def build_loss(config):
         return FocalDiceLoss(
             alpha=float(loss_cfg.get("alpha", 0.25)),
             gamma=float(loss_cfg.get("gamma", 2.0)),
+        )
+    if name == "tversky":
+        return TverskyLoss(
+            alpha=float(loss_cfg.get("alpha", 0.3)),
+            beta=float(loss_cfg.get("beta", 0.7)),
+            smooth=float(loss_cfg.get("smooth", 1.0)),
         )
     raise ValueError(f"Unsupported loss name: {name}")

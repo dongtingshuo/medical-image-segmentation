@@ -1,0 +1,75 @@
+# Kaggle low-contrast specialist workflow base config for v1.3.
+# The Kaggle script writes variant-specific runtime configs with real /kaggle/working paths.
+experiment_name: kaggle_low_contrast_v1_3
+seed: 42
+reproducibility:
+  deterministic: true
+device: auto
+require_gpu: true
+mixed_precision: true
+
+inference:
+  threshold: 0.35
+
+data:
+  train_images_dir: /kaggle/working/prepared_data/internal/train/images
+  train_masks_dir: /kaggle/working/prepared_data/internal/train/masks
+  val_images_dir: /kaggle/working/prepared_data/internal/val/images
+  val_masks_dir: /kaggle/working/prepared_data/internal/val/masks
+  test_images_dir: /kaggle/working/prepared_data/internal/test/images
+  test_masks_dir: /kaggle/working/prepared_data/internal/test/masks
+  external_images_dir: /kaggle/working/prepared_data/external/images
+  external_masks_dir: /kaggle/working/prepared_data/external/masks
+  image_size: 384
+
+model:
+  model_name: unet_plus_plus
+  in_channels: 3
+  out_channels: 1
+  encoder_name: efficientnet-b3
+  encoder_weights: imagenet
+
+training:
+  batch_size: 8
+  epochs: 20
+  lr: 1.0e-4
+  optimizer: adamw
+  scheduler: cosine
+  loss_name: bce_dice
+  num_workers: 2
+  early_stopping:
+    enabled: true
+    patience: 5
+    monitor: val_dice
+    mode: max
+
+loss:
+  name: bce_dice
+
+augmentation:
+  enabled: true
+  horizontal_flip: true
+  vertical_flip: true
+  rotate: true
+  color_jitter: true
+  low_contrast:
+    enabled: false
+    clahe: true
+    clahe_p: 0.35
+    clahe_clip_limit: [1.0, 4.0]
+    clahe_tile_grid_size: [8, 8]
+    random_gamma: true
+    gamma_p: 0.35
+    gamma_limit: [70, 130]
+    brightness_contrast: true
+    brightness_contrast_p: 0.45
+    brightness_limit: 0.18
+    contrast_limit: 0.35
+    simulate_low_contrast: true
+    simulate_p: 0.35
+    simulate_brightness_limit: [-0.05, 0.05]
+    simulate_contrast_limit: [-0.50, -0.15]
+
+paths:
+  output_dir: /kaggle/working/research_v1_3_low_contrast/preflight
+  checkpoint_dir: /kaggle/working/research_v1_3_low_contrast/preflight_checkpoints

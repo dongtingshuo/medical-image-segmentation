@@ -6,6 +6,9 @@
 - Added `export.py` for TorchScript and ONNX export with manifest and SHA256 checksums.
 - Added Docker CPU demo runtime for the Gradio application.
 - Added deployment-oriented tests for export and batch prediction workflows.
+- Added v1.3 low-contrast specialist Kaggle workflow with contrast-aware augmentation variants.
+- Added Tversky loss for false-negative-sensitive segmentation experiments.
+- Added low-contrast variant comparison reports and replacement-decision criteria.
 
 ## v1.2.0 - 2026-06-25
 

@@ -243,7 +243,55 @@ Do not replace the default local inference model with v1.2 outputs. The v1.2 wor
 
 不要用 v1.2 输出替换默认本地推理模型。v1.2 流程没有发布新 checkpoint，其阈值搜索结果也没有显著超过现有默认模型流程。继续使用 `configs/final_model.yaml` 和 `checkpoints/best_model.pth`。
 
-## 7. Downloading Kaggle Outputs / 下载 Kaggle 输出
+## 7. Low-Contrast Workflow v1.3 / 低对比度专项流程 v1.3
+
+Use v1.3 to test whether low-contrast augmentation and loss changes improve low-contrast segmentation.
+
+使用 v1.3 验证低对比度增强和 loss 改动是否能改善低对比度图像分割。
+
+Debug run:
+
+调试运行：
+
+```bash
+python notebooks/kaggle_low_contrast_v1_3.py --debug
+```
+
+Full run:
+
+完整运行：
+
+```bash
+python notebooks/kaggle_low_contrast_v1_3.py
+```
+
+Variants:
+
+实验变体：
+
+```text
+control_bce_dice
+contrast_aug_bce_dice
+contrast_aug_focal_dice
+contrast_aug_tversky
+```
+
+Main outputs:
+
+主要输出：
+
+```text
+/kaggle/working/research_v1_3_low_contrast/comparison/low_contrast_comparison.csv
+/kaggle/working/research_v1_3_low_contrast/comparison/low_contrast_comparison.md
+/kaggle/working/research_v1_3_low_contrast/execution_manifest.json
+/kaggle/working/release_artifacts/medical-segmentation-low-contrast-artifacts-v1.3.zip
+```
+
+Do not replace the default model unless the comparison report recommends replacement and visual samples are acceptable.
+
+除非 comparison report 建议替换且预测样例视觉正常，否则不要替换默认模型。
+
+## 8. Downloading Kaggle Outputs / 下载 Kaggle 输出
 
 Required files:
 
@@ -325,7 +373,7 @@ Final model config:
 configs/final_model.yaml
 ```
 
-## 8. Local Prediction / 本地预测
+## 9. Local Prediction / 本地预测
 
 Use the final model:
 
@@ -351,7 +399,7 @@ Outputs:
 *_lesion_ratio.txt
 ```
 
-## 9. Batch Prediction / 批量预测
+## 10. Batch Prediction / 批量预测
 
 Run inference on a folder:
 
@@ -387,7 +435,7 @@ The CSV records image path, status, lesion area ratio, inference time, device, m
 
 CSV 会记录图片路径、状态、病灶面积比例、推理时间、设备、模型名称、checkpoint epoch 和输出路径。
 
-## 10. Model Export / 模型导出
+## 11. Model Export / 模型导出
 
 Export the final model to TorchScript and ONNX:
 
@@ -416,7 +464,7 @@ The exported model returns one-channel logits. In deployment code, apply sigmoid
 
 导出的模型返回单通道 logits。部署代码中需要在推理后执行 sigmoid 和 threshold。
 
-## 11. Running Gradio Demo / 运行 Gradio Demo
+## 12. Running Gradio Demo / 运行 Gradio Demo
 
 Start:
 
@@ -446,7 +494,7 @@ The Demo shows original image, predicted mask, overlay, lesion area ratio, infer
 
 Demo 会显示原图、预测 mask、叠加图、病灶面积比例、推理时间和当前设备。
 
-## 12. Docker Demo / Docker 演示
+## 13. Docker Demo / Docker 演示
 
 Build the image:
 
@@ -479,7 +527,7 @@ Place `best_model.pth` in `checkpoints/` before starting the container. The defa
 
 启动容器前请先将 `best_model.pth` 放入 `checkpoints/`。默认容器面向 CPU 推理和 Demo，不用于 Kaggle 训练。
 
-## 13. Evaluation / 评估
+## 14. Evaluation / 评估
 
 Evaluate the final model:
 
@@ -510,7 +558,7 @@ To evaluate an independent test split, add `test_images_dir` and `test_masks_dir
 
 如需评估独立测试集，请先在 YAML 的 `data` 中增加 `test_images_dir` 和 `test_masks_dir`，再使用 `--split test`。已完成的重复实验流程已经报告 ISIC 2017 独立测试集和 ISIC 2018 外部验证集指标。
 
-## 14. Completed Results / 已完成结果
+## 15. Completed Results / 已完成结果
 
 | Experiment | Model | Val Loss at Best Dice Epoch | Dice | IoU | Precision | Recall | Training Time | Inference Time |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | --- | --- |
@@ -576,7 +624,7 @@ Failure case analysis at threshold `0.35`:
 | ISIC 2017 test | 600 | 0.858912 | 0.778042 | 111 | 174 | 0 |
 | External ISIC 2018 | 1002 | 0.924017 | 0.870954 | 93 | 104 | 0 |
 
-## 15. Output Paths / 输出路径
+## 16. Output Paths / 输出路径
 
 Training curves:
 
@@ -616,7 +664,7 @@ docs/assets/sanity_check/repeated_experiment/dataset_overlay_00_isic_0012940.png
 docs/assets/sanity_check/research_v1_2/dataset_overlay_00_isic_0012940.png
 ```
 
-## 16. Troubleshooting / 常见问题
+## 17. Troubleshooting / 常见问题
 
 ### CUDA is unavailable / CUDA 不可用
 

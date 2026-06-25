@@ -416,20 +416,30 @@ The v1.2 subgroup results strengthen this interpretation: low-contrast images ar
 
 v1.2 子组结果进一步支持该判断：低对比度图像在内部和外部划分上均弱于高对比度图像。因此后续改进应优先考虑对比度增强、伪影模拟和边界细化，而不是只增加模型容量。
 
-### 9.7 Runtime and Deployment Characteristics / 运行时与部署特性
+### 9.7 Low-Contrast Specialist Workflow v1.3 / v1.3 低对比度专项流程
+
+The v1.3 workflow is designed to test the hypothesis that contrast-aware augmentation and false-negative-sensitive loss functions can improve low-contrast lesion segmentation. It compares four variants: the current BCE + Dice control recipe, low-contrast augmentation with BCE + Dice, low-contrast augmentation with Focal + Dice, and low-contrast augmentation with Tversky loss.
+
+v1.3 流程用于验证一个假设：对比度感知增强和更重视 false negative 的 loss 能否改善低对比度病灶分割。该流程比较四个变体：当前 BCE + Dice 对照方案、低对比度增强 + BCE + Dice、低对比度增强 + Focal + Dice、低对比度增强 + Tversky loss。
+
+The default model is not changed by v1.3 code alone. Replacement is considered only when the completed Kaggle comparison shows a low-contrast Dice improvement of at least `+0.02` or low-contrast Recall improvement of at least `+0.03`, while overall internal-test Dice drops by no more than `0.01`.
+
+v1.3 代码本身不会改变默认模型。只有当完成的 Kaggle 对比显示低对比度 Dice 至少提升 `+0.02` 或低对比度 Recall 至少提升 `+0.03`，且整体 internal-test Dice 下降不超过 `0.01` 时，才考虑替换默认模型。
+
+### 9.8 Runtime and Deployment Characteristics / 运行时与部署特性
 
 The best repeated checkpoint contains 13.62M trainable parameters. On Kaggle Tesla P100, FP32 forward latency is 23.867 ms per 384x384 image, corresponding to 41.898 images/s. CPU inference remains usable for single-image local demo scenarios at 497.374 ms per image, but batch processing should prefer CUDA.
 
 最佳重复实验 checkpoint 包含 13.62M 可训练参数。在 Kaggle Tesla P100 上，384x384 单图 FP32 前向延迟为 23.867 ms，对应 41.898 images/s。CPU 单图推理为 497.374 ms，足够用于本地单图 demo，但批量处理更适合使用 CUDA。
 
-### 9.8 Improvement Directions / 改进方向
+### 9.9 Improvement Directions / 改进方向
 
 - Learning rate: try `5e-5` for the high-accuracy model to reduce validation fluctuation.
 - Batch size: keep 8 when memory allows; use 4 if GPU memory is limited.
 - Image size: keep 384 as the current default; test 448 only if memory permits.
 - Encoder: compare EfficientNet-B4, ResNet50, and ConvNeXt variants.
 - Loss: evaluate Focal + Dice for small-lesion recall.
-- Augmentation: add moderate color and geometric augmentation without distorting lesion appearance.
+- Augmentation: use the v1.3 low-contrast workflow to evaluate CLAHE, gamma, low-contrast simulation, and stronger brightness/contrast augmentation.
 - Epochs: keep early stopping; repeated runs stopped at 15-24 epochs, so 30 maximum epochs is usually enough unless a new encoder or dataset is introduced.
 
 ## 10. Deployment / 部署与本地运行
@@ -523,6 +533,7 @@ Future work:
 - Compare more pretrained encoders.
 - Add post-processing for boundary refinement and small false-positive filtering.
 - Add deployment benchmarks for ONNX Runtime and TorchScript runtimes.
+- Run and report the v1.3 low-contrast specialist Kaggle workflow.
 
 ## 12. Medical Disclaimer / 医学免责声明
 

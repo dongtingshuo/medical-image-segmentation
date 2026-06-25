@@ -44,6 +44,7 @@ Config: configs/final_model.yaml
 - Dockerized CPU demo runtime / Docker CPU demo 运行环境
 - Segmentation error analysis / 分割错误分析
 - Cross-validation, encoder comparison, subgroup analysis, and statistical summaries / 交叉验证、encoder 对比、子组分析和统计汇总
+- Low-contrast specialist v1.3 workflow / 低对比度专项 v1.3 流程
 - Lightweight toy segmentation demo / 轻量分割演示
 - Gradio Web Demo / Gradio Web 演示
 - Training sanity checks / 训练前质量检查
@@ -88,6 +89,7 @@ The main project documents describe training, evaluation, result interpretation,
 - [CHANGELOG.md](CHANGELOG.md)
 - [docs/releases/v1.1.0.md](docs/releases/v1.1.0.md)
 - [docs/releases/v1.2.0.md](docs/releases/v1.2.0.md)
+- [docs/releases/v1.3.0.md](docs/releases/v1.3.0.md)
 - [examples/toy_segmentation_demo/README.md](examples/toy_segmentation_demo/README.md)
 
 ## System Architecture / 系统架构
@@ -608,6 +610,42 @@ The v1.2 threshold search selected `0.55` for the encoder-comparison checkpoint,
 
 v1.2 阈值搜索为 encoder-comparison checkpoint 选择 `0.55`，验证集 Dice 为 `0.875356`、IoU 为 `0.778340`。该结果与现有 v1.1 后处理默认阈值结果接近，因此已发布的默认推理配置仍为 `configs/final_model.yaml`，推荐阈值仍为 `0.35`。
 
+### Low-Contrast Specialist Workflow v1.3 / v1.3 低对比度专项流程
+
+Version 1.3 adds a Kaggle workflow to test whether low-contrast-specific augmentation and loss choices improve low-contrast segmentation. It compares the current high-accuracy recipe with low-contrast augmentation plus BCE + Dice, Focal + Dice, and Tversky loss.
+
+v1.3 新增 Kaggle 低对比度专项流程，用于验证低对比度增强和 loss 选择是否能改善低对比度图像分割。它会对比当前高精度方案，以及低对比度增强结合 BCE + Dice、Focal + Dice 和 Tversky loss 的变体。
+
+Debug run:
+
+调试运行：
+
+```bash
+python notebooks/kaggle_low_contrast_v1_3.py --debug
+```
+
+Full run:
+
+完整运行：
+
+```bash
+python notebooks/kaggle_low_contrast_v1_3.py
+```
+
+Expected comparison outputs:
+
+预期对比输出：
+
+```text
+research_v1_3_low_contrast/comparison/low_contrast_comparison.csv
+research_v1_3_low_contrast/comparison/low_contrast_comparison.md
+research_v1_3_low_contrast/execution_manifest.json
+```
+
+The default model remains `configs/final_model.yaml` unless v1.3 improves internal-test low-contrast Dice by at least `+0.02` or low-contrast Recall by at least `+0.03`, while keeping overall internal-test Dice drop within `0.01`.
+
+默认模型仍为 `configs/final_model.yaml`，除非 v1.3 在 internal test 的低对比度 Dice 上至少提升 `+0.02`，或低对比度 Recall 至少提升 `+0.03`，同时整体 internal-test Dice 下降不超过 `0.01`。
+
 ## Visualization / 可视化结果
 
 Training curves:
@@ -732,7 +770,7 @@ This project is intended only for medical image segmentation experiments and eng
 
 - Extend subgroup analysis with body site and artifact metadata when available.
 - Compare additional encoders such as EfficientNet-B4, ResNet50, and ConvNeXt variants.
-- Evaluate Focal + Dice loss for small-lesion recall.
+- Run and report the v1.3 low-contrast specialist Kaggle workflow.
 - Add post-processing options for boundary smoothing or small false-positive removal.
 - Add GPU-oriented serving benchmarks for exported ONNX/TorchScript artifacts.
 
