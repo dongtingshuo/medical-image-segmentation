@@ -275,6 +275,28 @@ Expected SHA256 / 期望校验值：
 4b04ccd5f4fbdad492a91ea9866d31b9329a886e74464ddf42fffa1854f76577
 ```
 
+Experiment artifact release / 实验产物 Release：
+
+The `v1.1.0` release provides a reproducibility artifact package with repeated-seed metrics, independent test and external-validation results, CPU/CUDA benchmark reports, threshold-search outputs, failure-case reports, and representative overlays.
+
+`v1.1.0` Release 提供可复现实验产物包，包含 repeated-seed 指标、独立测试集与外部验证集结果、CPU/CUDA benchmark、阈值搜索、失败案例分析和代表性 overlay 图。
+
+```bash
+curl -L \
+  https://github.com/dongtingshuo/medical-image-segmentation/releases/download/v1.1.0/medical-segmentation-experiment-artifacts-v1.1.zip \
+  -o medical-segmentation-experiment-artifacts-v1.1.zip
+curl -L \
+  https://github.com/dongtingshuo/medical-image-segmentation/releases/download/v1.1.0/medical-segmentation-experiment-artifacts-v1.1.zip.sha256 \
+  -o medical-segmentation-experiment-artifacts-v1.1.zip.sha256
+shasum -a 256 medical-segmentation-experiment-artifacts-v1.1.zip
+```
+
+Expected artifact SHA256 / 实验产物期望校验值：
+
+```text
+e414fe14bd835217241462a5e653ccf0c67ffe6a739c20c1fb02ba1f0a1a0c3c
+```
+
 See [MODEL_CARD.md](MODEL_CARD.md) and [models/model_manifest.yaml](models/model_manifest.yaml) for model scope and machine-readable metadata. Checkpoints are loaded with PyTorch `weights_only=True`; do not use untrusted weight files.
 
 模型适用范围和机器可读元数据见 [MODEL_CARD.md](MODEL_CARD.md) 与 [models/model_manifest.yaml](models/model_manifest.yaml)。checkpoint 使用 PyTorch `weights_only=True` 加载，请勿使用来源不可信的权重文件。
