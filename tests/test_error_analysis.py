@@ -3,6 +3,7 @@ import numpy as np
 from scripts.create_toy_segmentation_data import create_toy_segmentation_data
 from scripts.run_error_analysis import run_error_analysis
 from src.analysis.error_analysis import analyze_segmentation_errors
+from src.analysis.failure_cases import select_failure_cases, write_failure_case_outputs
 
 
 def _square(size=32, start=10, end=20):
@@ -35,3 +36,20 @@ def test_run_error_analysis_outputs_json_and_bilingual_report(tmp_path):
     text = report_path.read_text(encoding="utf-8")
     assert "Error Analysis Overview / 错误分析概述" in text
     assert "Medical Disclaimer / 医学免责声明" in text
+
+
+def test_failure_case_report_ranks_worst_dice(tmp_path):
+    true = _square()
+    good = analyze_segmentation_errors(true, true)
+    bad = analyze_segmentation_errors(np.zeros_like(true), true)
+    records = [
+        {"sample_index": 0, "image": "good.png", "mask": "good.png", "threshold": 0.5, "prediction_ratio": 0.1, "ground_truth_ratio": 0.1, **good},
+        {"sample_index": 1, "image": "bad.png", "mask": "bad.png", "threshold": 0.5, "prediction_ratio": 0.0, "ground_truth_ratio": 0.1, **bad},
+    ]
+    selected = select_failure_cases(records, top_k=1, sort_by="dice")
+    assert selected[0]["image"] == "bad.png"
+
+    outputs = write_failure_case_outputs(records, selected, tmp_path, split="test", threshold=0.5)
+    text = outputs["markdown"].read_text(encoding="utf-8")
+    assert "Failure Case Analysis" in text
+    assert "bad.png" in text
