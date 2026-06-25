@@ -4,7 +4,6 @@ import numpy as np
 from src.inference import predict_array
 from src.utils import load_config
 
-
 MODEL_CHOICES = {
     "Auto (checkpoint/config)": None,
     "U-Net": "unet",
@@ -55,7 +54,7 @@ def build_app():
                     placeholder="checkpoints/best_model.pth",
                 )
                 config = gr.Textbox(label="Config path", value="configs/final_model.yaml")
-                threshold = gr.Slider(0.0, 1.0, value=0.5, step=0.01, label="Threshold")
+                threshold = gr.Slider(0.0, 1.0, value=0.35, step=0.01, label="Threshold")
                 device = gr.Dropdown(["auto", "cpu", "cuda"], value="auto", label="Device")
                 model = gr.Dropdown(
                     list(MODEL_CHOICES.keys()),

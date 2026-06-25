@@ -21,6 +21,9 @@ architecture:
 input:
   image_size: 384
   normalization: imagenet
+inference:
+  recommended_threshold: 0.35
+  threshold_selection: validation_dice_grid_search_0.30_0.70_step_0.05
 training:
   dataset: ISIC 2017 Kaggle mirror
   train_samples: 2000

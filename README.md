@@ -289,7 +289,6 @@ python predict.py \
   --checkpoint checkpoints/best_model.pth \
   --image path/to/image.jpg \
   --output outputs/samples \
-  --threshold 0.5 \
   --device auto
 ```
 
@@ -316,7 +315,7 @@ python evaluate.py \
   --config configs/final_model.yaml \
   --checkpoint checkpoints/best_model.pth \
   --split val \
-  --threshold 0.5
+  --threshold 0.35
 ```
 
 Metrics:
@@ -346,6 +345,9 @@ kaggle_outputs/high_accuracy/outputs/experiment_results.csv
 kaggle_outputs/repeated_experiment/repeated_experiments/summary.csv
 kaggle_outputs/repeated_experiment/repeated_experiments/all_seed_metrics.csv
 kaggle_outputs/repeated_experiment/repeated_experiments/benchmark/benchmark.csv
+kaggle_outputs/posthoc_analysis/posthoc_analysis/threshold_search/threshold_search.csv
+kaggle_outputs/posthoc_analysis/posthoc_analysis/failure_cases_test/failure_cases.csv
+kaggle_outputs/posthoc_analysis/posthoc_analysis/failure_cases_external/failure_cases.csv
 ```
 
 The full Kaggle outputs are kept outside Git tracking. A small set of representative curves, prediction samples, and sanity-check images is stored under `docs/assets/` for repository documentation.
@@ -403,6 +405,26 @@ Model size:
 - Model state size: `52.32 MB`
 - Checkpoint size: `152.32 MB`
 
+### Threshold Search and Failure Analysis / 阈值搜索与失败案例分析
+
+Post-hoc analysis on Kaggle searched validation thresholds from `0.30` to `0.70` with step `0.05`. The best validation Dice was reached at threshold `0.35`, so `configs/final_model.yaml`, `predict.py`, and the Gradio demo use `0.35` as the recommended default threshold.
+
+Kaggle 后处理在验证集上搜索 `0.30` 到 `0.70`、步长 `0.05` 的阈值。最佳验证集 Dice 对应 threshold `0.35`，因此 `configs/final_model.yaml`、`predict.py` 和 Gradio demo 推荐默认使用 `0.35`。
+
+| Threshold | Dice | IoU | Precision | Recall |
+| ---: | ---: | ---: | ---: | ---: |
+| 0.35 | 0.876188 | 0.779657 | 0.895335 | 0.857843 |
+| 0.50 | 0.872413 | 0.773700 | 0.917849 | 0.831264 |
+
+Failure case analysis ranks the worst samples by Dice and exports image, true mask, predicted mask, and overlays for inspection.
+
+失败案例分析按 Dice 从低到高自动排序，并导出原图、真实 mask、预测 mask 和 overlay 供检查。
+
+| Split | Samples | Mean Dice | Mean IoU | Over-segmentation | Under-segmentation | Empty prediction |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| ISIC 2017 test | 600 | 0.858912 | 0.778042 | 111 | 174 | 0 |
+| External ISIC 2018 | 1002 | 0.924017 | 0.870954 | 93 | 104 | 0 |
+
 ## Visualization / 可视化结果
 
 Training curves:
@@ -413,6 +435,7 @@ Training curves:
 docs/assets/results/baseline_unet_training_curves.png
 docs/assets/results/high_accuracy_training_curves.png
 docs/assets/results/repeated_experiment/seed_42_training_curves.png
+docs/assets/analysis/threshold_search/threshold_search.md
 ```
 
 ![Baseline U-Net training curves](docs/assets/results/baseline_unet_training_curves.png)
@@ -431,6 +454,8 @@ docs/assets/samples/baseline_unet/sample_001_overlay.png
 docs/assets/samples/high_accuracy/sample_000_overlay.png
 docs/assets/samples/high_accuracy/sample_001_overlay.png
 docs/assets/samples/repeated_experiment/sample_000_overlay.png
+docs/assets/analysis/failure_cases_test/rank_00_pred_overlay.png
+docs/assets/analysis/failure_cases_external/rank_00_pred_overlay.png
 ```
 
 ![Baseline U-Net prediction sample 0](docs/assets/samples/baseline_unet/sample_000_overlay.png)
@@ -442,6 +467,10 @@ docs/assets/samples/repeated_experiment/sample_000_overlay.png
 ![High accuracy prediction sample 1](docs/assets/samples/high_accuracy/sample_001_overlay.png)
 
 ![Repeated experiment prediction sample](docs/assets/samples/repeated_experiment/sample_000_overlay.png)
+
+![Worst ISIC 2017 test failure case](docs/assets/analysis/failure_cases_test/rank_00_pred_overlay.png)
+
+![Worst external ISIC 2018 failure case](docs/assets/analysis/failure_cases_external/rank_00_pred_overlay.png)
 
 Sanity check report:
 
@@ -480,6 +509,7 @@ Use:
 ```text
 configs/final_model.yaml
 checkpoints/best_model.pth
+recommended threshold: 0.35
 ```
 
 ## Current Limitations / 当前限制

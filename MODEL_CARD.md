@@ -14,6 +14,7 @@ The default inference model is U-Net++ with an EfficientNet-B3 encoder initializ
 - SHA256: `4b04ccd5f4fbdad492a91ea9866d31b9329a886e74464ddf42fffa1854f76577`
 - Embedded best epoch: `4`
 - Runtime config: `configs/final_model.yaml`
+- Recommended threshold: `0.35`
 - Machine-readable manifest: `models/model_manifest.yaml`
 
 ## Validation Results / 验证结果
@@ -31,6 +32,10 @@ These values are from the 150-image validation split described in `DATASET.md`. 
 
 上述数值来自 `DATASET.md` 记录的 150 张验证集，不代表外部测试或临床性能。
 
+Post-hoc threshold search selected `0.35` by validation Dice. Repeated engineering evaluation was also run on validation, ISIC 2017 independent test, and ISIC 2018 external splits; see `README.md`, `docs/report.md`, and the release experiment artifacts for those reports.
+
+后处理阈值搜索按验证集 Dice 选择 `0.35`。项目还完成了验证集、ISIC 2017 独立测试集和 ISIC 2018 外部集的重复工程评估；相关报告见 `README.md`、`docs/report.md` 和 Release 实验产物。
+
 ## Intended Use / 预期用途
 
 - Reproduce the repository's segmentation inference workflow.
@@ -41,9 +46,9 @@ These values are from the 150-image validation split described in `DATASET.md`. 
 
 ## Current Limitations / 当前限制
 
-- Evaluation is limited to one validation split.
+- Evaluation is dataset-level engineering validation, not clinical validation.
 - Package versions and source commit were not embedded in the legacy v1.0.0 checkpoint.
-- No external test, cross-validation, subgroup, calibration, or clinical validation was performed.
+- No cross-validation, subgroup, calibration, reader study, or clinical validation was performed.
 - Performance may degrade under acquisition, device, skin-tone, lesion-type, or annotation shifts.
 - The selected model showed mild overfitting after its best epoch.
 

@@ -167,6 +167,9 @@ kaggle_outputs/high_accuracy/outputs/experiment_results.csv
 kaggle_outputs/repeated_experiment/repeated_experiments/summary.csv
 kaggle_outputs/repeated_experiment/repeated_experiments/all_seed_metrics.csv
 kaggle_outputs/repeated_experiment/repeated_experiments/benchmark/benchmark.csv
+kaggle_outputs/posthoc_analysis/posthoc_analysis/threshold_search/threshold_search.csv
+kaggle_outputs/posthoc_analysis/posthoc_analysis/failure_cases_test/failure_cases.csv
+kaggle_outputs/posthoc_analysis/posthoc_analysis/failure_cases_external/failure_cases.csv
 ```
 
 Full Kaggle outputs are kept outside Git tracking. Representative documentation assets are copied to `docs/assets/`.
@@ -215,6 +218,19 @@ Inference benchmark for the best repeated checkpoint:
 Model parameters: `13,624,793`; model state size: `52.32 MB`; checkpoint size: `152.32 MB`.
 
 模型参数量为 `13,624,793`，模型 state 大小为 `52.32 MB`，checkpoint 大小为 `152.32 MB`。
+
+Post-hoc threshold search:
+
+后处理阈值搜索：
+
+| Threshold | Validation Dice | Validation IoU | Precision | Recall |
+| ---: | ---: | ---: | ---: | ---: |
+| 0.35 | 0.876188 | 0.779657 | 0.895335 | 0.857843 |
+| 0.50 | 0.872413 | 0.773700 | 0.917849 | 0.831264 |
+
+The recommended inference threshold is therefore set to `0.35` in `configs/final_model.yaml`.
+
+因此，`configs/final_model.yaml` 中推荐推理阈值设置为 `0.35`。
 
 Training curves:
 
@@ -278,11 +294,26 @@ The external ISIC 2018 split reached Dice `0.915828 ± 0.006676` and IoU `0.8570
 
 ISIC 2018 外部集达到 Dice `0.915828 ± 0.006676`、IoU `0.857054 ± 0.011829`。该结果应解释为基于 Kaggle 镜像和当前预处理流程的工程外部验证，而不是临床泛化证据。数据组成、预处理方式和标注差异都可能使跨数据集分数高于或低于内部划分。
 
-### 9.5 Prediction Quality and Failure Cases / 预测质量与失败案例
+### 9.5 Threshold Search / 阈值搜索
 
-The downloaded prediction samples do not show all-black or all-white masks. Predicted regions are concentrated around lesions, and no large false-positive regions are visible in the inspected overlays. The high-accuracy samples produce smoother and more aligned masks than the baseline samples.
+Validation threshold search found `0.35` as the best threshold by Dice. Compared with the default `0.50`, threshold `0.35` increased validation Dice from `0.872413` to `0.876188` and recall from `0.831264` to `0.857843`, while precision decreased from `0.917849` to `0.895335`. This trade-off is reasonable for a segmentation demo because it reduces missed lesion pixels.
 
-已下载预测样例没有出现全黑或全白 mask。预测区域集中在病灶附近，检查到的 overlay 中没有明显大面积误检。高精度模型样例比 baseline 更贴合真实区域，边界更平滑。
+验证集阈值搜索发现，按 Dice 最优的阈值为 `0.35`。与默认 `0.50` 相比，`0.35` 将验证集 Dice 从 `0.872413` 提升到 `0.876188`，Recall 从 `0.831264` 提升到 `0.857843`，但 Precision 从 `0.917849` 降至 `0.895335`。对分割 demo 而言，该权衡可以减少病灶像素漏检，因而是合理的。
+
+### 9.6 Prediction Quality and Failure Cases / 预测质量与失败案例
+
+The downloaded prediction samples do not show all-black or all-white masks. Predicted regions are concentrated around lesions, and no large false-positive regions are visible in the inspected overlays. The high-accuracy samples produce smoother and more aligned masks than the baseline samples. The post-hoc failure analysis also found zero empty predictions on both ISIC 2017 test and external ISIC 2018 splits.
+
+已下载预测样例没有出现全黑或全白 mask。预测区域集中在病灶附近，检查到的 overlay 中没有明显大面积误检。高精度模型样例比 baseline 更贴合真实区域，边界更平滑。后处理失败案例分析也显示，ISIC 2017 test 和外部 ISIC 2018 中均没有空预测。
+
+Failure analysis summary at threshold `0.35`:
+
+阈值 `0.35` 下的失败案例统计：
+
+| Split | Samples | Mean Dice | Mean IoU | Over-segmentation | Under-segmentation | Empty prediction |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| ISIC 2017 test | 600 | 0.858912 | 0.778042 | 111 | 174 | 0 |
+| External ISIC 2018 | 1002 | 0.924017 | 0.870954 | 93 | 104 | 0 |
 
 Sample-level IoU from four downloaded samples:
 
@@ -299,13 +330,13 @@ Potential failure cases remain possible for very small lesions, low-contrast les
 
 潜在失败场景包括极小病灶、低对比度病灶、毛发遮挡、颜色伪影和标注噪声。目前输出中没有单独整理的失败案例集合。
 
-### 9.6 Runtime and Deployment Characteristics / 运行时与部署特性
+### 9.7 Runtime and Deployment Characteristics / 运行时与部署特性
 
 The best repeated checkpoint contains 13.62M trainable parameters. On Kaggle Tesla P100, FP32 forward latency is 23.867 ms per 384x384 image, corresponding to 41.898 images/s. CPU inference remains usable for single-image local demo scenarios at 497.374 ms per image, but batch processing should prefer CUDA.
 
 最佳重复实验 checkpoint 包含 13.62M 可训练参数。在 Kaggle Tesla P100 上，384x384 单图 FP32 前向延迟为 23.867 ms，对应 41.898 images/s。CPU 单图推理为 497.374 ms，足够用于本地单图 demo，但批量处理更适合使用 CUDA。
 
-### 9.7 Improvement Directions / 改进方向
+### 9.8 Improvement Directions / 改进方向
 
 - Learning rate: try `5e-5` for the high-accuracy model to reduce validation fluctuation.
 - Batch size: keep 8 when memory allows; use 4 if GPU memory is limited.
@@ -324,6 +355,7 @@ The final default inference files are:
 ```text
 Checkpoint: checkpoints/best_model.pth
 Config: configs/final_model.yaml
+Threshold: 0.35
 ```
 
 The verified release URL, SHA256 digest, architecture, and validation scope are documented in [`MODEL_CARD.md`](../MODEL_CARD.md) and [`models/model_manifest.yaml`](../models/model_manifest.yaml). The inference loader uses `weights_only=True` and validates checkpoint architecture metadata before loading parameters.

@@ -256,7 +256,6 @@ python predict.py \
   --checkpoint checkpoints/best_model.pth \
   --image path/to/image.jpg \
   --output outputs/samples \
-  --threshold 0.5 \
   --device auto
 ```
 
@@ -289,7 +288,7 @@ Recommended fields:
 Config: configs/final_model.yaml
 Checkpoint: checkpoints/best_model.pth
 Model type: Auto (checkpoint/config)
-Threshold: 0.5
+Threshold: 0.35
 Device: auto
 ```
 
@@ -312,7 +311,7 @@ python evaluate.py \
   --config configs/final_model.yaml \
   --checkpoint checkpoints/best_model.pth \
   --split val \
-  --threshold 0.5
+  --threshold 0.35
 ```
 
 Metrics:
@@ -366,6 +365,24 @@ Model parameters: `13,624,793`; model state size: `52.32 MB`; checkpoint size: `
 
 模型参数量：`13,624,793`；模型 state 大小：`52.32 MB`；checkpoint 大小：`152.32 MB`。
 
+Threshold search selected `0.35` as the recommended default threshold:
+
+阈值搜索选择 `0.35` 作为推荐默认阈值：
+
+| Threshold | Validation Dice | Validation IoU | Precision | Recall |
+| ---: | ---: | ---: | ---: | ---: |
+| 0.35 | 0.876188 | 0.779657 | 0.895335 | 0.857843 |
+| 0.50 | 0.872413 | 0.773700 | 0.917849 | 0.831264 |
+
+Failure case analysis at threshold `0.35`:
+
+阈值 `0.35` 下的失败案例分析：
+
+| Split | Samples | Mean Dice | Mean IoU | Over-segmentation | Under-segmentation | Empty prediction |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| ISIC 2017 test | 600 | 0.858912 | 0.778042 | 111 | 174 | 0 |
+| External ISIC 2018 | 1002 | 0.924017 | 0.870954 | 93 | 104 | 0 |
+
 ## 11. Output Paths / 输出路径
 
 Training curves:
@@ -376,6 +393,7 @@ Training curves:
 docs/assets/results/baseline_unet_training_curves.png
 docs/assets/results/high_accuracy_training_curves.png
 docs/assets/results/repeated_experiment/seed_42_training_curves.png
+docs/assets/analysis/threshold_search/threshold_search.md
 ```
 
 Prediction samples:
@@ -386,6 +404,8 @@ Prediction samples:
 docs/assets/samples/baseline_unet/
 docs/assets/samples/high_accuracy/
 docs/assets/samples/repeated_experiment/
+docs/assets/analysis/failure_cases_test/
+docs/assets/analysis/failure_cases_external/
 ```
 
 Sanity check:

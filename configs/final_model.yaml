@@ -6,6 +6,9 @@ device: auto
 require_gpu: false
 mixed_precision: false
 
+inference:
+  threshold: 0.35
+
 data:
   train_images_dir: data/images/train
   train_masks_dir: data/masks/train
