@@ -165,9 +165,9 @@ Early stopping: enabled
 
 ## 6. Research Workflow v1.2 / 研究增强流程 v1.2
 
-Use this workflow when you want stronger experimental evidence beyond one train/validation run. It is designed for Kaggle GPU and a small research budget.
+Use this workflow when you want stronger experimental evidence beyond one train/validation run. It is designed for Kaggle GPU and a small research budget. The current v1.2 run has completed successfully and is documented in `docs/releases/v1.2.0.md`.
 
-当需要比单次 train/validation 更强的实验依据时，使用该流程。它面向 Kaggle GPU 和小预算研究训练。
+当需要比单次 train/validation 更强的实验依据时，使用该流程。它面向 Kaggle GPU 和小预算研究训练。当前 v1.2 运行已成功完成，结果记录在 `docs/releases/v1.2.0.md`。
 
 Run the full Kaggle research script:
 
@@ -204,9 +204,44 @@ Main outputs:
 /kaggle/working/release_artifacts/medical-segmentation-research-artifacts-v1.2.zip
 ```
 
-Do not replace the default local inference model until the v1.2 outputs have been reviewed.
+Completed local v1.2 output directory:
 
-在审查 v1.2 输出前，不要替换默认本地推理模型。
+本地已下载的 v1.2 输出目录：
+
+```text
+kaggle_outputs/research_v1_2/medical-segmentation-research-artifacts-v1.2/
+```
+
+Sanitized release artifact:
+
+清理版 Release 产物：
+
+```text
+release_artifacts/medical-segmentation-research-artifacts-v1.2.zip
+SHA256: 68f8d417d8df21434666f6cfd438c0972a9849ebd6801b275cfbc4e7ab131843
+```
+
+The sanitized package excludes materialized fold data and medical images. Use this package for GitHub Release assets rather than the raw Kaggle zip.
+
+清理版产物排除了 materialized fold data 和医学图像。用于 GitHub Release 时应使用该清理版，而不是原始 Kaggle zip。
+
+Key v1.2 results:
+
+v1.2 关键结果：
+
+| Item | Result |
+| --- | --- |
+| 3-fold CV Dice | 0.907006 ± 0.003104 |
+| 3-fold CV IoU | 0.841579 ± 0.003732 |
+| Best encoder in comparison | EfficientNet-B3 |
+| EfficientNet-B3 validation Dice | 0.870200 |
+| ResNet34 validation Dice | 0.857985 |
+| v1.2 selected threshold | 0.55 |
+| Main weakness from subgroup analysis | Low-contrast images |
+
+Do not replace the default local inference model with v1.2 outputs. The v1.2 workflow did not publish a new checkpoint, and its threshold-search result does not materially exceed the existing default model workflow. Keep using `configs/final_model.yaml` and `checkpoints/best_model.pth`.
+
+不要用 v1.2 输出替换默认本地推理模型。v1.2 流程没有发布新 checkpoint，其阈值搜索结果也没有显著超过现有默认模型流程。继续使用 `configs/final_model.yaml` 和 `checkpoints/best_model.pth`。
 
 ## 7. Downloading Kaggle Outputs / 下载 Kaggle 输出
 
@@ -231,6 +266,7 @@ Current downloaded output directories:
 ```text
 kaggle_outputs/baseline_unet/
 kaggle_outputs/high_accuracy/
+kaggle_outputs/research_v1_2/
 ```
 
 These full output directories are local runtime artifacts and are intentionally ignored by Git. Representative public documentation images are stored in:
@@ -397,6 +433,20 @@ Repeated high-accuracy evaluation:
 | Independent test | 0.852301 ± 0.009611 | 0.769329 ± 0.012870 | 0.947166 ± 0.010456 | 0.815953 ± 0.022209 |
 | External ISIC 2018 | 0.915828 ± 0.006676 | 0.857054 ± 0.011829 | 0.956375 ± 0.014224 | 0.895332 ± 0.025478 |
 
+Research workflow v1.2:
+
+研究增强流程 v1.2：
+
+| Experiment | Dice | IoU | Precision | Recall | Notes |
+| --- | ---: | ---: | ---: | ---: | --- |
+| 3-fold CV mean | 0.907006 | 0.841579 | 0.927466 | 0.909939 | Mean over 3 folds |
+| EfficientNet-B3 encoder comparison | 0.870200 | 0.790512 | 0.885267 | 0.896205 | Best encoder by Dice |
+| ResNet34 encoder comparison | 0.857985 | 0.775294 | 0.913277 | 0.856506 | Higher precision, lower recall |
+
+v1.2 did not change the default inference model.
+
+v1.2 未改变默认推理模型。
+
 Inference benchmark for the best repeated checkpoint:
 
 最佳重复实验 checkpoint 推理基准：
@@ -439,6 +489,8 @@ docs/assets/results/baseline_unet_training_curves.png
 docs/assets/results/high_accuracy_training_curves.png
 docs/assets/results/repeated_experiment/seed_42_training_curves.png
 docs/assets/analysis/threshold_search/threshold_search.md
+docs/assets/results/research_v1_2/cv_fold_1_training_curves.png
+docs/assets/results/research_v1_2/encoder_effb3_training_curves.png
 ```
 
 Prediction samples:
@@ -449,6 +501,7 @@ Prediction samples:
 docs/assets/samples/baseline_unet/
 docs/assets/samples/high_accuracy/
 docs/assets/samples/repeated_experiment/
+docs/assets/samples/research_v1_2/
 docs/assets/analysis/failure_cases_test/
 docs/assets/analysis/failure_cases_external/
 ```
@@ -462,6 +515,7 @@ docs/assets/sanity_check/dataset_check_report.md
 docs/assets/sanity_check/dataset_overlay_00.png
 docs/assets/sanity_check/dataset_overlay_01.png
 docs/assets/sanity_check/repeated_experiment/dataset_overlay_00_isic_0012940.png
+docs/assets/sanity_check/research_v1_2/dataset_overlay_00_isic_0012940.png
 ```
 
 ## 13. Troubleshooting / 常见问题

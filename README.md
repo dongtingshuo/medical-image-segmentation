@@ -250,10 +250,10 @@ python train.py --config configs/kaggle_high_accuracy.yaml
 ## Research Workflow v1.2 / 研究增强流程 v1.2
 
 English:
-Version 1.2 adds a Kaggle-oriented research workflow for small-budget robustness analysis. It does not replace the current default inference model until the new workflow is executed and reviewed.
+Version 1.2 adds a Kaggle-oriented research workflow for small-budget robustness analysis. The workflow has been executed on Kaggle GPU and is reported as robustness evidence. It does not replace the current default inference checkpoint.
 
 中文：
-v1.2 新增面向 Kaggle 的小预算研究增强流程，用于稳健性分析。在实际运行并审查结果前，它不会替换当前默认推理模型。
+v1.2 新增面向 Kaggle 的小预算研究增强流程，用于稳健性分析。该流程已在 Kaggle GPU 上完成运行，并作为稳健性证据报告；它不替换当前默认推理 checkpoint。
 
 Core commands:
 
@@ -298,9 +298,18 @@ Kaggle 完整研究脚本：
 python notebooks/kaggle_research_v1_2.py
 ```
 
-Expected v1.2 outputs include `cross_validation_summary.md`, `encoder_comparison_summary.md`, subgroup CSV/Markdown reports, statistical CI reports, and `medical-segmentation-research-artifacts-v1.2.zip`. Actual v1.2 metrics should be filled only after the Kaggle script completes.
+Completed v1.2 outputs include `cross_validation_summary.md`, `encoder_comparison_summary.md`, subgroup CSV/Markdown reports, statistical CI reports, and a sanitized release artifact package. The sanitized package excludes materialized fold data and medical image files.
 
-v1.2 预期输出包括 `cross_validation_summary.md`、`encoder_comparison_summary.md`、子组 CSV/Markdown 报告、统计置信区间报告和 `medical-segmentation-research-artifacts-v1.2.zip`。实际 v1.2 指标应在 Kaggle 脚本完成后再填写。
+v1.2 已完成输出包括 `cross_validation_summary.md`、`encoder_comparison_summary.md`、子组 CSV/Markdown 报告、统计置信区间报告和经过清理的 Release 产物包。清理后的产物包不包含 materialized fold data 或医学图像文件。
+
+Research artifact:
+
+研究产物：
+
+```text
+release_artifacts/medical-segmentation-research-artifacts-v1.2.zip
+SHA256: 68f8d417d8df21434666f6cfd438c0972a9849ebd6801b275cfbc4e7ab131843
+```
 
 ## Local Inference / 本地推理
 
@@ -428,6 +437,7 @@ kaggle_outputs/repeated_experiment/repeated_experiments/benchmark/benchmark.csv
 kaggle_outputs/posthoc_analysis/posthoc_analysis/threshold_search/threshold_search.csv
 kaggle_outputs/posthoc_analysis/posthoc_analysis/failure_cases_test/failure_cases.csv
 kaggle_outputs/posthoc_analysis/posthoc_analysis/failure_cases_external/failure_cases.csv
+kaggle_outputs/research_v1_2/medical-segmentation-research-artifacts-v1.2/research_v1_2/
 ```
 
 The full Kaggle outputs are kept outside Git tracking. A small set of representative curves, prediction samples, and sanity-check images is stored under `docs/assets/` for repository documentation.
@@ -505,6 +515,42 @@ Failure case analysis ranks the worst samples by Dice and exports image, true ma
 | ISIC 2017 test | 600 | 0.858912 | 0.778042 | 111 | 174 | 0 |
 | External ISIC 2018 | 1002 | 0.924017 | 0.870954 | 93 | 104 | 0 |
 
+### Research Workflow v1.2 Results / v1.2 研究流程结果
+
+The v1.2 Kaggle research run used commit `ed93c3a9d58d28de819043b5c0472627364cfd86`, ISIC 2017 internal data, and ISIC 2018 external data. Dataset sanity check passed with 2,000 train pairs, 150 validation pairs, zero invalid binary masks, and mean foreground ratio `0.192484`.
+
+v1.2 Kaggle 研究任务使用 commit `ed93c3a9d58d28de819043b5c0472627364cfd86`、ISIC 2017 内部数据和 ISIC 2018 外部数据。数据检查通过：2,000 对训练图像/mask、150 对验证图像/mask、无无效二值 mask，平均前景比例为 `0.192484`。
+
+3-fold cross-validation summary:
+
+3 折交叉验证摘要：
+
+| Metric | Mean | Std | Min | Max | 95% CI |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Dice | 0.907006 | 0.003104 | 0.903474 | 0.909298 | 0.903494-0.910518 |
+| IoU | 0.841579 | 0.003732 | 0.837271 | 0.843789 | 0.837357-0.845802 |
+| Precision | 0.927466 | 0.009870 | 0.917520 | 0.937258 | 0.916297-0.938635 |
+| Recall | 0.909939 | 0.006971 | 0.902043 | 0.915241 | 0.902050-0.917827 |
+| Specificity | 0.982133 | 0.001544 | 0.980465 | 0.983513 | Not available |
+| Boundary F1 | 0.538169 | 0.011199 | 0.531467 | 0.551098 | Not available |
+
+Encoder comparison on the original train/validation split:
+
+原始 train/validation 划分上的 encoder 对比：
+
+| Encoder | Dice | IoU | Precision | Recall | Specificity | Boundary F1 | Loss |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| EfficientNet-B3 | 0.870200 | 0.790512 | 0.885267 | 0.896205 | 0.967987 | 0.500648 | 0.139043 |
+| ResNet34 | 0.857985 | 0.775294 | 0.913277 | 0.856506 | 0.977918 | 0.478584 | 0.163083 |
+
+EfficientNet-B3 remains the preferred high-capacity encoder because it improves Dice, IoU, Recall, Boundary F1, and validation loss compared with ResNet34 in this run. ResNet34 has higher Precision and Specificity, but lower lesion-pixel recovery.
+
+本次实验中 EfficientNet-B3 相比 ResNet34 获得更高 Dice、IoU、Recall、Boundary F1 和更低验证 loss，因此仍作为推荐高容量 encoder。ResNet34 的 Precision 和 Specificity 更高，但病灶像素找回能力较弱。
+
+The v1.2 threshold search selected `0.55` for the encoder-comparison checkpoint, with validation Dice `0.875356` and IoU `0.778340`. This result is close to the existing v1.1 post-hoc default threshold result, so the released default inference config remains `configs/final_model.yaml` with threshold `0.35`.
+
+v1.2 阈值搜索为 encoder-comparison checkpoint 选择 `0.55`，验证集 Dice 为 `0.875356`、IoU 为 `0.778340`。该结果与现有 v1.1 后处理默认阈值结果接近，因此已发布的默认推理配置仍为 `configs/final_model.yaml`，推荐阈值仍为 `0.35`。
+
 ## Visualization / 可视化结果
 
 Training curves:
@@ -515,6 +561,9 @@ Training curves:
 docs/assets/results/baseline_unet_training_curves.png
 docs/assets/results/high_accuracy_training_curves.png
 docs/assets/results/repeated_experiment/seed_42_training_curves.png
+docs/assets/results/research_v1_2/cv_fold_1_training_curves.png
+docs/assets/results/research_v1_2/encoder_effb3_training_curves.png
+docs/assets/results/research_v1_2/encoder_resnet34_training_curves.png
 docs/assets/analysis/threshold_search/threshold_search.md
 ```
 
@@ -523,6 +572,10 @@ docs/assets/analysis/threshold_search/threshold_search.md
 ![High accuracy training curves](docs/assets/results/high_accuracy_training_curves.png)
 
 ![Repeated experiment best seed training curves](docs/assets/results/repeated_experiment/seed_42_training_curves.png)
+
+![v1.2 cross-validation fold 1 training curves](docs/assets/results/research_v1_2/cv_fold_1_training_curves.png)
+
+![v1.2 EfficientNet-B3 encoder training curves](docs/assets/results/research_v1_2/encoder_effb3_training_curves.png)
 
 Prediction samples:
 
@@ -534,6 +587,9 @@ docs/assets/samples/baseline_unet/sample_001_overlay.png
 docs/assets/samples/high_accuracy/sample_000_overlay.png
 docs/assets/samples/high_accuracy/sample_001_overlay.png
 docs/assets/samples/repeated_experiment/sample_000_overlay.png
+docs/assets/samples/research_v1_2/cv_fold_1_sample_000_overlay.png
+docs/assets/samples/research_v1_2/encoder_effb3_sample_000_overlay.png
+docs/assets/samples/research_v1_2/encoder_resnet34_sample_000_overlay.png
 docs/assets/analysis/failure_cases_test/rank_00_pred_overlay.png
 docs/assets/analysis/failure_cases_external/rank_00_pred_overlay.png
 ```
@@ -548,6 +604,8 @@ docs/assets/analysis/failure_cases_external/rank_00_pred_overlay.png
 
 ![Repeated experiment prediction sample](docs/assets/samples/repeated_experiment/sample_000_overlay.png)
 
+![v1.2 EfficientNet-B3 prediction sample](docs/assets/samples/research_v1_2/encoder_effb3_sample_000_overlay.png)
+
 ![Worst ISIC 2017 test failure case](docs/assets/analysis/failure_cases_test/rank_00_pred_overlay.png)
 
 ![Worst external ISIC 2018 failure case](docs/assets/analysis/failure_cases_external/rank_00_pred_overlay.png)
@@ -561,6 +619,8 @@ docs/assets/sanity_check/dataset_check_report.md
 docs/assets/sanity_check/dataset_overlay_00.png
 docs/assets/sanity_check/dataset_overlay_01.png
 docs/assets/sanity_check/repeated_experiment/dataset_overlay_00_isic_0012940.png
+docs/assets/sanity_check/research_v1_2/dataset_check_report.md
+docs/assets/sanity_check/research_v1_2/dataset_overlay_00_isic_0012940.png
 ```
 
 High-accuracy dataset check summary:
@@ -596,7 +656,7 @@ recommended threshold: 0.35
 
 - Current repeated metrics cover validation, independent ISIC 2017 test, and external ISIC 2018 splits, but they are still dataset-level engineering metrics rather than clinical validation. / 当前重复实验指标覆盖验证集、ISIC 2017 独立测试集和 ISIC 2018 外部集，但仍属于数据集级工程评估，不是临床验证。
 - The v1.0.0 checkpoint did not persist complete package versions or a source commit; the manifest records these fields as unavailable. / v1.0.0 checkpoint 未保存完整依赖版本和源码 commit，manifest 已将这些字段标记为不可用。
-- Cross-validation, subgroup analysis, and statistical-summary workflows are implemented for v1.2, but their new metrics are not reported until the Kaggle research script is executed. Calibration study, reader study, and clinical validation remain out of scope. / v1.2 已实现交叉验证、子组分析和统计汇总流程，但新指标需在 Kaggle 研究脚本运行后再报告。校准研究、读者实验和临床验证仍未覆盖。
+- v1.2 adds cross-validation, subgroup analysis, and statistical summaries, but still does not include calibration study, reader study, prospective validation, or clinical validation. / v1.2 已补充交叉验证、子组分析和统计汇总，但仍未包含校准研究、读者实验、前瞻性验证或临床验证。
 - CPU/CUDA inference benchmarks were measured on Kaggle x86_64 and Tesla P100; timings may differ on local hardware. / CPU/CUDA 推理基准在 Kaggle x86_64 和 Tesla P100 上测得，本地硬件耗时可能不同。
 - The high-accuracy model shows mild overfitting after the best epoch. / 高精度模型在最佳 epoch 后出现轻微过拟合。
 - Toy demo results do not represent real medical performance. / toy demo 结果不代表真实医学性能。
@@ -613,7 +673,7 @@ This project is intended only for medical image segmentation experiments and eng
 
 ## Future Work / 后续改进
 
-- Run and publish the v1.2 Kaggle research workflow artifacts.
+- Publish the sanitized v1.2 research artifact package as a GitHub Release asset.
 - Extend subgroup analysis with body site and artifact metadata when available.
 - Compare additional encoders such as EfficientNet-B4, ResNet50, and ConvNeXt variants.
 - Evaluate Focal + Dice loss for small-lesion recall.

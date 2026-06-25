@@ -1,5 +1,18 @@
 # Changelog / 变更记录
 
+## v1.2.0 - 2026-06-25
+
+This release adds and reports the Kaggle research workflow for robustness analysis without changing the default inference checkpoint.
+
+本版本新增并报告 Kaggle 研究增强流程，用于稳健性分析，不更改默认推理 checkpoint。
+
+- Added 3-fold cross-validation with leakage checks.
+- Added U-Net++ encoder comparison between EfficientNet-B3 and ResNet34.
+- Added threshold search, subgroup analysis, and statistical summaries.
+- Added a sanitized v1.2 artifact package that excludes materialized fold data and medical image files.
+- Added representative v1.2 curves, overlays, and analysis reports under `docs/assets/`.
+- Updated README, technical report, release notes, and final guide with real v1.2 Kaggle results.
+
 ## v1.1.0 - 2026-06-22
 
 This release strengthens reproducibility, checkpoint safety, continuous integration, experiment traceability, and local inference behavior without changing the published v1.0.0 model weights.

@@ -171,7 +171,7 @@ kaggle_outputs/repeated_experiment/repeated_experiments/benchmark/benchmark.csv
 kaggle_outputs/posthoc_analysis/posthoc_analysis/threshold_search/threshold_search.csv
 kaggle_outputs/posthoc_analysis/posthoc_analysis/failure_cases_test/failure_cases.csv
 kaggle_outputs/posthoc_analysis/posthoc_analysis/failure_cases_external/failure_cases.csv
-kaggle_outputs/research_v1_2/research_v1_2/  # populated after running notebooks/kaggle_research_v1_2.py
+kaggle_outputs/research_v1_2/medical-segmentation-research-artifacts-v1.2/research_v1_2/
 ```
 
 Full Kaggle outputs are kept outside Git tracking. Representative documentation assets are copied to `docs/assets/`.
@@ -268,26 +268,82 @@ docs/assets/samples/repeated_experiment/
 
 ### 8.1 Research Workflow v1.2 / 研究增强流程 v1.2
 
-Version 1.2 implements the next research workflow but does not report numeric results until the Kaggle task is executed. The workflow includes:
+Version 1.2 was executed on Kaggle GPU as a small-budget robustness analysis workflow. It reports cross-validation, encoder comparison, threshold search, subgroup analysis, and statistical summaries. It does not publish new model weights and does not replace the existing default inference checkpoint.
 
-v1.2 已实现下一阶段研究流程，但在 Kaggle 任务实际完成前不填写数值结果。该流程包括：
+v1.2 已在 Kaggle GPU 上完成运行，作为小预算稳健性分析流程。该流程报告交叉验证、encoder 对比、阈值搜索、子组分析和统计汇总。它不发布新模型权重，也不替换现有默认推理 checkpoint。
 
-- 3-fold cross-validation on a materialized train+validation set with leakage checks.
-- Lightweight encoder comparison using U-Net++ with EfficientNet-B3 and ResNet34.
-- Threshold search for the selected encoder-comparison checkpoint.
-- Subgroup analysis on lesion size and image contrast for internal test and external validation splits.
-- Statistical summaries with mean, sample standard deviation, and 95% confidence intervals.
+Execution manifest:
 
-Expected output files:
-
-预期输出文件：
+执行清单：
 
 ```text
-research_v1_2/cross_validation/cross_validation_summary.md
-research_v1_2/encoder_comparison/encoder_comparison_summary.md
-research_v1_2/subgroup_analysis_test/subgroup_summary.md
-research_v1_2/subgroup_analysis_external/subgroup_summary.md
-research_v1_2/statistics_cv_encoder/statistical_analysis.md
+Source commit: ed93c3a9d58d28de819043b5c0472627364cfd86
+Internal dataset: moon1570/isic-2017-train-val-test-images-and-masks
+External dataset: tntiphan/isic-2018-task-1
+Cross-validation folds: 3
+Cross-validation epochs: 15
+Encoder comparison epochs: 20
+Compared encoders: efficientnet-b3, resnet34
+Best encoder by validation Dice: efficientnet-b3
+Best v1.2 threshold: 0.55
+```
+
+The v1.2 dataset check found 2,000 train image/mask pairs and 150 validation image/mask pairs, with zero invalid binary masks and no image/mask mismatches. The mean mask foreground ratio was `0.192484`.
+
+v1.2 数据检查发现 2,000 对训练图像/mask 和 150 对验证图像/mask，无无效二值 mask，未发现 image/mask 尺寸或匹配错误。mask 平均前景比例为 `0.192484`。
+
+3-fold cross-validation:
+
+3 折交叉验证：
+
+| Metric | Mean | Std | Min | Max | 95% CI |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Dice | 0.907006 | 0.003104 | 0.903474 | 0.909298 | 0.903494-0.910518 |
+| IoU | 0.841579 | 0.003732 | 0.837271 | 0.843789 | 0.837357-0.845802 |
+| Precision | 0.927466 | 0.009870 | 0.917520 | 0.937258 | 0.916297-0.938635 |
+| Recall | 0.909939 | 0.006971 | 0.902043 | 0.915241 | 0.902050-0.917827 |
+| Specificity | 0.982133 | 0.001544 | 0.980465 | 0.983513 | Not available |
+| Boundary F1 | 0.538169 | 0.011199 | 0.531467 | 0.551098 | Not available |
+| Loss | 0.108300 | 0.006976 | 0.103654 | 0.116322 | 0.100406-0.116194 |
+
+Encoder comparison:
+
+Encoder 对比：
+
+| Encoder | Dice | IoU | Precision | Recall | Specificity | Boundary F1 | Loss | Best Epoch |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| EfficientNet-B3 | 0.870200 | 0.790512 | 0.885267 | 0.896205 | 0.967987 | 0.500648 | 0.139043 | 6 |
+| ResNet34 | 0.857985 | 0.775294 | 0.913277 | 0.856506 | 0.977918 | 0.478584 | 0.163083 | 15 |
+
+Threshold search for the v1.2 encoder-comparison checkpoint selected threshold `0.55`, with Dice `0.875356`, IoU `0.778340`, Precision `0.890919`, and Recall `0.860326`.
+
+v1.2 encoder-comparison checkpoint 的阈值搜索选择 threshold `0.55`，对应 Dice `0.875356`、IoU `0.778340`、Precision `0.890919`、Recall `0.860326`。
+
+Subgroup analysis highlights:
+
+子组分析重点：
+
+- Internal ISIC 2017 test: low-contrast images are weaker than high-contrast images (`0.832174` vs `0.902537` Dice). Large/high-ratio lesions show lower recall than small/low-ratio lesions.
+- External ISIC 2018: overall subgroup Dice is higher, but low-contrast and small-lesion groups remain weaker than high-contrast or large-lesion groups.
+- These patterns suggest that contrast variation and boundary ambiguity are more important failure drivers than the encoder choice alone.
+
+- ISIC 2017 内部测试集：低对比度图像弱于高对比度图像（Dice `0.832174` vs `0.902537`）。大面积/高占比病灶的 recall 低于小面积/低占比病灶。
+- ISIC 2018 外部集：整体子组 Dice 更高，但低对比度和小病灶组仍弱于高对比度或大病灶组。
+- 这些结果表明，对比度变化和边界模糊比单纯更换 encoder 更可能成为主要失败因素。
+
+Representative v1.2 output files:
+
+v1.2 代表性输出文件：
+
+```text
+docs/assets/results/research_v1_2/cv_fold_1_training_curves.png
+docs/assets/results/research_v1_2/encoder_effb3_training_curves.png
+docs/assets/results/research_v1_2/encoder_resnet34_training_curves.png
+docs/assets/samples/research_v1_2/encoder_effb3_sample_000_overlay.png
+docs/assets/sanity_check/research_v1_2/dataset_overlay_00_isic_0012940.png
+docs/assets/analysis/research_v1_2/cross_validation_summary.md
+docs/assets/analysis/research_v1_2/encoder_comparison_summary.md
+docs/assets/analysis/research_v1_2/threshold_search.md
 ```
 
 ## 9. Analysis / 结果分析
@@ -356,6 +412,10 @@ Potential failure cases remain possible for very small lesions, low-contrast les
 
 潜在失败场景包括极小病灶、低对比度病灶、毛发遮挡、颜色伪影和标注噪声。目前输出中没有单独整理的失败案例集合。
 
+The v1.2 subgroup results strengthen this interpretation: low-contrast images are consistently weaker than high-contrast images on both internal and external splits. This suggests that future improvement should prioritize contrast-aware augmentation, artifact simulation, and boundary refinement rather than only increasing model capacity.
+
+v1.2 子组结果进一步支持该判断：低对比度图像在内部和外部划分上均弱于高对比度图像。因此后续改进应优先考虑对比度增强、伪影模拟和边界细化，而不是只增加模型容量。
+
 ### 9.7 Runtime and Deployment Characteristics / 运行时与部署特性
 
 The best repeated checkpoint contains 13.62M trainable parameters. On Kaggle Tesla P100, FP32 forward latency is 23.867 ms per 384x384 image, corresponding to 41.898 images/s. CPU inference remains usable for single-image local demo scenarios at 497.374 ms per image, but batch processing should prefer CUDA.
@@ -416,7 +476,7 @@ Limitations:
 
 - Repeated evaluation covers validation, independent ISIC 2017 test, and external ISIC 2018 splits, but it is still dataset-level engineering validation rather than clinical validation.
 - CPU/CUDA inference benchmarks were measured on Kaggle x86_64 and Tesla P100; local hardware may differ.
-- Cross-validation, subgroup analysis, and statistical-summary code paths are implemented for v1.2, but new v1.2 numeric results are not reported until the Kaggle research workflow is executed.
+- v1.2 adds cross-validation, subgroup analysis, and statistical summaries, but the workflow remains small-budget and does not replace large-scale multi-center evaluation.
 - Calibration study, reader study, and clinical validation are not included.
 - The legacy v1.0.0 checkpoint did not record complete package versions or a source commit.
 - The current overlay visualization displays predicted masks; true masks are saved separately.
@@ -425,7 +485,7 @@ Future work:
 
 后续工作：
 
-- Run and publish the v1.2 Kaggle research workflow artifacts.
+- Publish the sanitized v1.2 research artifact package as a GitHub Release asset.
 - Extend subgroup analysis with body site and imaging-artifact metadata when available.
 - Compare more pretrained encoders.
 - Add post-processing for boundary refinement and small false-positive filtering.
