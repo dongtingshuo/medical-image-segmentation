@@ -90,6 +90,7 @@ The main project documents describe training, evaluation, result interpretation,
 - [docs/releases/v1.1.0.md](docs/releases/v1.1.0.md)
 - [docs/releases/v1.2.0.md](docs/releases/v1.2.0.md)
 - [docs/releases/v1.3.0.md](docs/releases/v1.3.0.md)
+- [docs/releases/v1.4.0.md](docs/releases/v1.4.0.md)
 - [examples/toy_segmentation_demo/README.md](examples/toy_segmentation_demo/README.md)
 
 ## System Architecture / 系统架构
@@ -691,6 +692,43 @@ The best internal-test low-contrast improvement was modest: `contrast_aug_bce_di
 
 最佳 internal-test 低对比度提升幅度较小：`contrast_aug_bce_dice` 将低对比度 Dice 提升 `+0.000800`，低对比度 Recall 提升 `+0.009289`。该幅度低于预设的 `+0.02` Dice 或 `+0.03` Recall 替换标准。
 
+### Aggressive Kaggle Workflow v1.4 / v1.4 激进提分流程
+
+Version 1.4 adds an aggressive but restart-safe Kaggle workflow for higher-capacity and higher-resolution experiments. It prioritizes U-Net++ EfficientNet-B4 at 448/512, DeepLabV3+ EfficientNet-B4, optional EfficientNet-B5, TTA, and mask post-processing.
+
+v1.4 新增更激进但可断点续跑的 Kaggle 提分流程，重点测试 448/512 分辨率、EfficientNet-B4/B5、DeepLabV3+、TTA 和 mask 后处理。
+
+Debug run:
+
+调试运行：
+
+```bash
+python notebooks/kaggle_aggressive_v1_4.py --debug
+```
+
+Full run:
+
+完整运行：
+
+```bash
+python notebooks/kaggle_aggressive_v1_4.py
+```
+
+The v1.4 runner stores each experiment under its own state directory. Completed experiments are skipped with `completed.json`, failed experiments are recorded in `failed.json`, and unfinished training resumes from `checkpoints/last_model.pth`. Training configs can set `training.max_runtime_minutes` and `training.safe_stop_minutes`; when the safety window is reached, training saves a resumable checkpoint and exits normally.
+
+v1.4 runner 会把每个实验存入独立状态目录。已有 `completed.json` 的实验会跳过，失败项写入 `failed.json`，未完成训练会从 `checkpoints/last_model.pth` 继续。训练配置可设置 `training.max_runtime_minutes` 和 `training.safe_stop_minutes`；接近时限时会主动保存可续训 checkpoint 并正常退出。
+
+Expected v1.4 outputs:
+
+预期 v1.4 输出：
+
+```text
+research_v1_4_aggressive/comparison/aggressive_v1_4_summary.csv
+research_v1_4_aggressive/comparison/aggressive_v1_4_summary.md
+research_v1_4_aggressive/execution_manifest.json
+release_artifacts/medical-segmentation-aggressive-artifacts-v1.4.zip
+```
+
 ## Visualization / 可视化结果
 
 Training curves:
@@ -814,8 +852,8 @@ This project is intended only for medical image segmentation experiments and eng
 ## Future Work / 后续改进
 
 - Extend subgroup analysis with body site and artifact metadata when available.
-- Compare additional encoders such as EfficientNet-B4, ResNet50, and ConvNeXt variants.
-- Run and report the v1.3 low-contrast specialist Kaggle workflow.
+- Run and report the aggressive v1.4 Kaggle workflow.
+- Compare additional encoders such as ResNet50 and ConvNeXt variants when GPU budget allows.
 - Add post-processing options for boundary smoothing or small false-positive removal.
 - Add GPU-oriented serving benchmarks for exported ONNX/TorchScript artifacts.
 

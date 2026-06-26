@@ -36,3 +36,25 @@ def test_package_release_artifacts_excludes_v1_3_checkpoints(tmp_path):
     assert "low_contrast_comparison.csv" in manifest_text
     assert "training_curves.png" in manifest_text
     assert "best_model.pth" not in manifest_text
+
+
+def test_package_release_artifacts_includes_v1_4_reports_but_not_checkpoints(tmp_path):
+    source = tmp_path / "source"
+    experiment = source / "research_v1_4_aggressive" / "experiments" / "unetpp_effb4_448"
+    comparison = source / "research_v1_4_aggressive" / "comparison"
+    comparison.mkdir(parents=True)
+    (comparison / "aggressive_v1_4_summary.csv").write_text("experiment,dice\n", encoding="utf-8")
+    (experiment / "checkpoints").mkdir(parents=True)
+    (experiment / "checkpoints" / "best_model.pth").write_bytes(b"checkpoint")
+    (experiment / "tta_fast_test").mkdir(parents=True)
+    (experiment / "tta_fast_test" / "tta_postprocess_metrics.csv").write_text("dice\n", encoding="utf-8")
+    (experiment / "ensemble_b4_unetpp_deeplab_test").mkdir(parents=True)
+    (experiment / "ensemble_b4_unetpp_deeplab_test" / "ensemble_metrics.csv").write_text("dice\n", encoding="utf-8")
+
+    result = package_release_artifacts(source, tmp_path / "release", package_name="artifacts")
+    manifest_text = result["manifest"].read_text(encoding="utf-8")
+
+    assert "aggressive_v1_4_summary.csv" in manifest_text
+    assert "tta_postprocess_metrics.csv" in manifest_text
+    assert "ensemble_metrics.csv" in manifest_text
+    assert "best_model.pth" not in manifest_text

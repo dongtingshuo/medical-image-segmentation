@@ -12,6 +12,10 @@
 - Added training resume support from `last_model.pth`, including optimizer, scheduler, AMP scaler, metric history, and early-stopping state.
 - Made the v1.3 Kaggle workflow restart-safe with completed-variant skipping and automatic resume.
 - Reported the completed v1.3 Kaggle results; `contrast_aug_bce_dice` was best but did not meet the configured default-model replacement threshold.
+- Added aggressive v1.4 Kaggle workflow for higher-capacity encoder, higher-resolution fine-tune, TTA, and post-processing experiments.
+- Added trainer time-budget safety stops, gradient accumulation, and fine-tune-friendly resume controls.
+- Added optional sample-weighted training for hard-example replay workflows.
+- Added TTA/post-processing evaluation utilities and v1.4 artifact packaging patterns.
 
 ## v1.2.0 - 2026-06-25
 

@@ -34,7 +34,17 @@ def _ensure_finite_tensor(value, label):
         raise FloatingPointError(f"Non-finite {label} detected. Stop training and inspect data, loss, lr, and masks.")
 
 
-def train_one_epoch(model, dataloader, criterion, optimizer, device, scaler=None, use_amp=False, max_batches=None):
+def train_one_epoch(
+    model,
+    dataloader,
+    criterion,
+    optimizer,
+    device,
+    scaler=None,
+    use_amp=False,
+    max_batches=None,
+    gradient_accumulation_steps=1,
+):
     model.train()
     totals = {
         "loss": 0.0,
@@ -46,6 +56,9 @@ def train_one_epoch(model, dataloader, criterion, optimizer, device, scaler=None
         "boundary_f1": 0.0,
     }
     count = 0
+    accumulation_steps = max(1, int(gradient_accumulation_steps or 1))
+    pending_steps = 0
+    optimizer.zero_grad(set_to_none=True)
     progress = tqdm(dataloader, desc="train", leave=False)
     for batch_idx, (images, masks) in enumerate(progress):
         if max_batches is not None and batch_idx >= max_batches:
@@ -53,18 +66,24 @@ def train_one_epoch(model, dataloader, criterion, optimizer, device, scaler=None
         images = images.to(device, non_blocking=True)
         masks = masks.to(device, non_blocking=True)
 
-        optimizer.zero_grad(set_to_none=True)
         with torch.amp.autocast("cuda", enabled=use_amp):
             logits = model(images)
             loss = criterion(logits, masks)
         _ensure_finite_tensor(loss, "training loss")
+        scaled_loss = loss / accumulation_steps
         if scaler is not None and use_amp:
-            scaler.scale(loss).backward()
-            scaler.step(optimizer)
-            scaler.update()
+            scaler.scale(scaled_loss).backward()
         else:
-            loss.backward()
-            optimizer.step()
+            scaled_loss.backward()
+        pending_steps += 1
+        if pending_steps >= accumulation_steps:
+            if scaler is not None and use_amp:
+                scaler.step(optimizer)
+                scaler.update()
+            else:
+                optimizer.step()
+            optimizer.zero_grad(set_to_none=True)
+            pending_steps = 0
 
         metrics = _metric_dict(logits.detach(), masks)
         batch_size = images.size(0)
@@ -73,6 +92,13 @@ def train_one_epoch(model, dataloader, criterion, optimizer, device, scaler=None
             totals[key] += value * batch_size
         count += batch_size
         progress.set_postfix(loss=totals["loss"] / count, dice=totals["dice"] / count)
+    if pending_steps:
+        if scaler is not None and use_amp:
+            scaler.step(optimizer)
+            scaler.update()
+        else:
+            optimizer.step()
+        optimizer.zero_grad(set_to_none=True)
     return {key: value / max(count, 1) for key, value in totals.items()}
 
 
@@ -156,6 +182,21 @@ def _score_from_metrics(metrics, monitor):
     return float(metrics[monitor_key])
 
 
+def _time_stop_after_seconds(training_cfg):
+    max_runtime_minutes = training_cfg.get("max_runtime_minutes")
+    if max_runtime_minutes in {None, "", 0, 0.0}:
+        return None
+    safe_stop_minutes = float(training_cfg.get("safe_stop_minutes", 5.0))
+    stop_after = (float(max_runtime_minutes) - safe_stop_minutes) * 60.0
+    return max(0.0, stop_after)
+
+
+def _should_stop_for_time(start_time, stop_after_seconds):
+    if stop_after_seconds is None:
+        return False
+    return (time.time() - start_time) >= float(stop_after_seconds)
+
+
 def _load_resume_state(
     resume_path,
     model,
@@ -166,26 +207,39 @@ def _load_resume_state(
     expected_model_config,
     monitor,
     default_best_score,
+    restore_optimizer=True,
+    resume_training_state=True,
 ):
     checkpoint = load_checkpoint_payload(resume_path, device=device)
     load_checkpoint(
         resume_path,
         model,
         device,
-        optimizer=optimizer,
+        optimizer=optimizer if restore_optimizer else None,
         expected_model_config=expected_model_config,
         checkpoint=checkpoint,
     )
-    if scheduler is not None and checkpoint.get("scheduler_state_dict") is not None:
+    if restore_optimizer and scheduler is not None and checkpoint.get("scheduler_state_dict") is not None:
         try:
             scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
         except (ValueError, RuntimeError) as exc:
             warnings.warn(f"Scheduler state was not restored: {exc}", RuntimeWarning, stacklevel=2)
-    if scaler is not None and checkpoint.get("scaler_state_dict") is not None:
+    if restore_optimizer and scaler is not None and checkpoint.get("scaler_state_dict") is not None:
         try:
             scaler.load_state_dict(checkpoint["scaler_state_dict"])
         except (ValueError, RuntimeError) as exc:
             warnings.warn(f"AMP scaler state was not restored: {exc}", RuntimeWarning, stacklevel=2)
+
+    if not resume_training_state:
+        return {
+            "start_epoch": 1,
+            "history": _empty_history(),
+            "best_score": default_best_score,
+            "bad_epochs": 0,
+            "best_metrics": {},
+            "best_epoch": None,
+            "checkpoint": checkpoint,
+        }
 
     best_metrics = checkpoint.get("best_metrics", {})
     best_score = checkpoint.get("best_score")
@@ -241,6 +295,8 @@ def train_model(
     best_path = checkpoint_dir / "best_model.pth"
     last_path = checkpoint_dir / "last_model.pth"
     start = time.time()
+    stop_after_seconds = _time_stop_after_seconds(training_cfg)
+    stopped_reason = None
 
     history = _empty_history()
     start_epoch = 1
@@ -255,6 +311,8 @@ def train_model(
             expected_model_config=config.get("model", {}),
             monitor=monitor,
             default_best_score=best_score,
+            restore_optimizer=bool(training_cfg.get("resume_optimizer", True)),
+            resume_training_state=bool(training_cfg.get("resume_training_state", True)),
         )
         start_epoch = resume_state["start_epoch"]
         history = resume_state["history"]
@@ -286,6 +344,7 @@ def train_model(
             scaler=scaler,
             use_amp=use_amp,
             max_batches=training_cfg.get("max_train_batches"),
+            gradient_accumulation_steps=training_cfg.get("gradient_accumulation_steps", 1),
         )
         val_metrics = validate_one_epoch(
             model,
@@ -345,6 +404,8 @@ def train_model(
                 "torch_version": str(torch.__version__),
                 "monitor": monitor,
                 "monitor_mode": mode,
+                "max_runtime_minutes": training_cfg.get("max_runtime_minutes"),
+                "safe_stop_minutes": training_cfg.get("safe_stop_minutes"),
             },
         }
 
@@ -370,9 +431,26 @@ def train_model(
             state["bad_epochs"] = bad_epochs
             if early_enabled and bad_epochs >= patience:
                 print(f"Early stopping triggered after {bad_epochs} non-improving epochs.")
+                state["stopped_reason"] = "early_stopping"
                 save_checkpoint(state, last_path)
+                stopped_reason = "early_stopping"
                 break
         save_checkpoint(state, last_path)
+        if _should_stop_for_time(start, stop_after_seconds):
+            stopped_reason = "time_budget"
+            state["stopped_reason"] = stopped_reason
+            state["bad_epochs"] = bad_epochs
+            state["best_score"] = best_score
+            state["best_metrics"] = best_metrics
+            state["best_epoch"] = best_epoch
+            save_checkpoint(state, last_path)
+            print(
+                "Time budget reached after epoch {}. Saved resumable checkpoint to {}.".format(
+                    epoch,
+                    last_path,
+                )
+            )
+            break
 
     training_time = format_time(time.time() - start)
     _save_metrics_csv(history, output_dir)
@@ -413,9 +491,16 @@ def train_model(
         "checkpoint_path": str(best_path),
         "checkpoint_format_version": CHECKPOINT_FORMAT_VERSION,
         "training_time": training_time,
+        "stopped_reason": stopped_reason or "",
     }
     append_experiment_result(output_dir, result)
-    return {"history": history, "best_checkpoint": best_path, "last_checkpoint": last_path, "best_metrics": best_metrics}
+    return {
+        "history": history,
+        "best_checkpoint": best_path,
+        "last_checkpoint": last_path,
+        "best_metrics": best_metrics,
+        "stopped_reason": stopped_reason,
+    }
 
 
 fit = train_model

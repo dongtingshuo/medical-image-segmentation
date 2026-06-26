@@ -2,6 +2,7 @@ import pytest
 import torch
 
 from src.model_unet import UNet
+from src.trainer import _time_stop_after_seconds
 from src.utils import load_checkpoint, load_checkpoint_payload, save_checkpoint
 
 
@@ -47,3 +48,9 @@ def test_checkpoint_rejects_architecture_mismatch(tmp_path):
             expected_model_config=_config(base_channels=8)["model"],
             checkpoint=payload,
         )
+
+
+def test_time_budget_uses_safe_stop_window():
+    assert _time_stop_after_seconds({}) is None
+    assert _time_stop_after_seconds({"max_runtime_minutes": 60, "safe_stop_minutes": 10}) == 3000.0
+    assert _time_stop_after_seconds({"max_runtime_minutes": 5, "safe_stop_minutes": 10}) == 0.0

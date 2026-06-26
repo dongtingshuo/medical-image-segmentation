@@ -1,8 +1,9 @@
 import argparse
+import csv
 from pathlib import Path
 
 import torch
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, WeightedRandomSampler
 
 from src.dataset import SkinLesionDataset, get_train_transforms, get_val_transforms
 from src.losses import build_loss
@@ -50,6 +51,39 @@ def build_scheduler(optimizer, config):
     raise ValueError(f"Unsupported scheduler: {name}")
 
 
+def build_weighted_sampler(dataset, config):
+    data_cfg = config.get("data", {})
+    weights_path = data_cfg.get("sample_weights_csv")
+    if not weights_path:
+        return None
+    weights_path = Path(weights_path)
+    if not weights_path.exists():
+        raise FileNotFoundError(f"sample_weights_csv does not exist: {weights_path}")
+    stem_column = data_cfg.get("sample_weight_stem_column", "stem")
+    weight_column = data_cfg.get("sample_weight_column", "weight")
+    weights_by_stem = {}
+    with weights_path.open("r", newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        if stem_column not in (reader.fieldnames or []) or weight_column not in (reader.fieldnames or []):
+            raise ValueError(
+                f"sample_weights_csv must contain `{stem_column}` and `{weight_column}` columns: {weights_path}"
+            )
+        for row in reader:
+            weights_by_stem[str(row[stem_column])] = float(row[weight_column])
+    weights = []
+    for image_path, _ in dataset.pairs:
+        weight = float(weights_by_stem.get(image_path.stem, 1.0))
+        if weight <= 0:
+            raise ValueError(f"Sample weight must be positive for `{image_path.stem}`, got {weight}")
+        weights.append(weight)
+    return WeightedRandomSampler(
+        torch.as_tensor(weights, dtype=torch.double),
+        num_samples=len(weights),
+        replacement=True,
+        generator=make_torch_generator(int(config.get("seed", 42))),
+    )
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="configs/unet.yaml")
@@ -73,10 +107,12 @@ def main():
     val_dataset = SkinLesionDataset(val_images, val_masks, transform=get_val_transforms(config))
 
     training = config.get("training", {})
+    train_sampler = build_weighted_sampler(train_dataset, config)
     train_loader = DataLoader(
         train_dataset,
         batch_size=int(training.get("batch_size", 8)),
-        shuffle=True,
+        shuffle=train_sampler is None,
+        sampler=train_sampler,
         num_workers=int(training.get("num_workers", 2)),
         pin_memory=device.type == "cuda",
         worker_init_fn=seed_worker,

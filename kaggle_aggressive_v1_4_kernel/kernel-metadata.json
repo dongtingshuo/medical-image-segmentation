@@ -1,0 +1,16 @@
+{
+  "id": "dongtingshuo/medseg-aggressive-v1-4",
+  "title": "medseg-aggressive-v1-4",
+  "code_file": "aggressive_v1_4.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": "true",
+  "enable_gpu": "true",
+  "enable_internet": "true",
+  "dataset_sources": [
+    "moon1570/isic-2017-train-val-test-images-and-masks",
+    "tntiphan/isic-2018-task-1"
+  ],
+  "competition_sources": [],
+  "kernel_sources": []
+}
