@@ -257,6 +257,20 @@ High-accuracy training:
 python train.py --config configs/kaggle_high_accuracy.yaml
 ```
 
+Resume interrupted training:
+
+断点续训：
+
+```bash
+python train.py \
+  --config configs/kaggle_high_accuracy.yaml \
+  --resume /kaggle/working/checkpoints/last_model.pth
+```
+
+Training checkpoints save model, optimizer, scheduler, AMP scaler, metrics history, best score, best epoch, and early-stopping state. Use `last_model.pth` for resume and `best_model.pth` for evaluation or inference.
+
+训练 checkpoint 会保存模型、optimizer、scheduler、AMP scaler、指标历史、最佳分数、最佳 epoch 和 early-stopping 状态。断点续训使用 `last_model.pth`，评估或推理使用 `best_model.pth`。
+
 ## Research Workflow v1.2 / 研究增强流程 v1.2
 
 English:
@@ -631,6 +645,10 @@ Full run:
 ```bash
 python notebooks/kaggle_low_contrast_v1_3.py
 ```
+
+The v1.3 Kaggle script is restart-safe. If a Kaggle GPU session stops because of the time limit, re-submit the same script. Completed variants with `completed.json` are skipped, and incomplete variants resume from `checkpoints/last_model.pth` when available.
+
+v1.3 Kaggle 脚本支持重提续跑。如果 Kaggle GPU 因时间限制停止，重新提交同一个脚本即可。已有 `completed.json` 的 variant 会被跳过，未完成 variant 会在可用时从 `checkpoints/last_model.pth` 继续训练。
 
 Expected comparison outputs:
 

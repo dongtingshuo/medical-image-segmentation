@@ -56,6 +56,7 @@ python scripts/analyze_statistics.py --inputs /path/to/metrics.csv --output-dir 
 python scripts/compare_low_contrast_variants.py --variants-root /path/to/variants --variants control_bce_dice contrast_aug_bce_dice
 python scripts/check_dataset.py --config configs/debug_local.yaml
 python train.py --config configs/unet.yaml
+python train.py --config configs/unet.yaml --resume checkpoints/last_model.pth
 python evaluate.py --config configs/final_model.yaml --checkpoint checkpoints/best_model.pth --split val
 python predict.py --config configs/final_model.yaml --checkpoint checkpoints/best_model.pth --image path/to/image.jpg
 python batch_predict.py --config configs/final_model.yaml --checkpoint checkpoints/best_model.pth --input-dir path/to/images

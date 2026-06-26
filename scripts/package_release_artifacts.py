@@ -65,6 +65,7 @@ DEFAULT_PATTERNS = (
     "research_v1_3_low_contrast/comparison/*.json",
     "research_v1_3_low_contrast/comparison/*.md",
     "research_v1_3_low_contrast/variants/*/runtime_config.yaml",
+    "research_v1_3_low_contrast/variants/*/completed.json",
     "research_v1_3_low_contrast/variants/*/train.log",
     "research_v1_3_low_contrast/variants/*/outputs/curves/*.png",
     "research_v1_3_low_contrast/variants/*/outputs/training_history.csv",

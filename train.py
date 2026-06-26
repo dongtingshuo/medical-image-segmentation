@@ -53,6 +53,7 @@ def build_scheduler(optimizer, config):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="configs/unet.yaml")
+    parser.add_argument("--resume", default=None, help="Resume training from a project checkpoint, usually last_model.pth.")
     args = parser.parse_args()
 
     config = load_config(args.config)
@@ -107,7 +108,12 @@ def main():
     print(f"Model: {model_name}")
     print(f"Deterministic mode: {deterministic}")
     print(f"Train samples: {len(train_dataset)} | Val samples: {len(val_dataset)}")
-    train_model(model, train_loader, val_loader, criterion, optimizer, scheduler, device, config)
+    resume_path = args.resume or training.get("resume_from")
+    if resume_path:
+        resume_path = Path(resume_path)
+        if not resume_path.exists():
+            raise FileNotFoundError(f"Resume checkpoint does not exist: {resume_path}")
+    train_model(model, train_loader, val_loader, criterion, optimizer, scheduler, device, config, resume_path=resume_path)
 
 
 if __name__ == "__main__":

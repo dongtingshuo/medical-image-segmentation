@@ -95,8 +95,15 @@ def is_oom_log(text):
     return "out of memory" in lowered or "cuda error: out of memory" in lowered
 
 
-def train_with_oom_fallback(config_path, config, cwd, log_path):
+def train_command(config_path, resume_path=None):
     command = [sys.executable, "train.py", "--config", str(config_path)]
+    if resume_path is not None and Path(resume_path).exists():
+        command.extend(["--resume", str(resume_path)])
+    return command
+
+
+def train_with_oom_fallback(config_path, config, cwd, log_path, resume_path=None):
+    command = train_command(config_path, resume_path=resume_path)
     print(">>>", " ".join(command), flush=True)
     result = subprocess.run(command, cwd=cwd, text=True, capture_output=True)
     log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -110,7 +117,10 @@ def train_with_oom_fallback(config_path, config, cwd, log_path):
         print("CUDA OOM detected. Retrying with batch_size=4.", flush=True)
         config["training"]["batch_size"] = 4
         write_yaml(config_path, config)
-        result = subprocess.run(command, cwd=cwd, text=True, capture_output=True)
+        retry_resume = resume_path if resume_path is not None and Path(resume_path).exists() else None
+        retry_command = train_command(config_path, resume_path=retry_resume)
+        print(">>>", " ".join(retry_command), flush=True)
+        result = subprocess.run(retry_command, cwd=cwd, text=True, capture_output=True)
         log_path.write_text((result.stdout or "") + "\n" + (result.stderr or ""), encoding="utf-8")
         if result.returncode == 0:
             print(result.stdout, flush=True)
@@ -150,11 +160,27 @@ def evaluate_variant(config_path, checkpoint_path, split, output_dir):
 
 def run_variant(variant, base_config, output_root):
     variant_root = output_root / variant
-    if variant_root.exists():
-        shutil.rmtree(variant_root)
-    config = variant_config(base_config, variant, output_root)
-    config_path = write_yaml(variant_root / "runtime_config.yaml", config)
-    trained_config = train_with_oom_fallback(config_path, config, REPOSITORY_ROOT, variant_root / "train.log")
+    completed_path = variant_root / "completed.json"
+    if completed_path.exists():
+        print(f"Variant `{variant}` is already completed. Skipping training and analysis.", flush=True)
+        return json.loads(completed_path.read_text(encoding="utf-8"))
+
+    config_path = variant_root / "runtime_config.yaml"
+    if config_path.exists():
+        config = load_yaml(config_path)
+    else:
+        config = variant_config(base_config, variant, output_root)
+        write_yaml(config_path, config)
+    resume_path = variant_root / "checkpoints/last_model.pth"
+    if resume_path.exists():
+        print(f"Resuming variant `{variant}` from {resume_path}.", flush=True)
+    trained_config = train_with_oom_fallback(
+        config_path,
+        config,
+        REPOSITORY_ROOT,
+        variant_root / "train.log",
+        resume_path=resume_path if resume_path.exists() else None,
+    )
     write_yaml(config_path, trained_config)
     move_training_metrics(variant_root)
     checkpoint_path = variant_root / "checkpoints/best_model.pth"
@@ -204,7 +230,9 @@ def run_variant(variant, base_config, output_root):
             ],
             cwd=REPOSITORY_ROOT,
         )
-    return {"variant": variant, "best_threshold": best_threshold, "batch_size": trained_config["training"]["batch_size"]}
+    summary = {"variant": variant, "best_threshold": best_threshold, "batch_size": trained_config["training"]["batch_size"]}
+    completed_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    return summary
 
 
 def main():

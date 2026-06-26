@@ -1,6 +1,7 @@
 import csv
 import platform
 import time
+import warnings
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -9,7 +10,7 @@ from tqdm import tqdm
 
 from src.experiment import append_experiment_result
 from src.metrics import boundary_f1_score, dice_score, iou_score, precision_score, recall_score, specificity_score
-from src.utils import CHECKPOINT_FORMAT_VERSION, format_time, load_checkpoint, save_checkpoint
+from src.utils import CHECKPOINT_FORMAT_VERSION, format_time, load_checkpoint, load_checkpoint_payload, save_checkpoint
 from src.visualization import plot_training_curves, save_sample_predictions
 
 
@@ -124,6 +125,85 @@ def _save_metrics_csv(history, output_dir):
     return path
 
 
+def _empty_history():
+    return {
+        "epoch": [],
+        "train_loss": [],
+        "val_loss": [],
+        "val_dice": [],
+        "val_iou": [],
+        "val_precision": [],
+        "val_recall": [],
+        "val_specificity": [],
+        "val_boundary_f1": [],
+    }
+
+
+def _history_from_checkpoint(checkpoint):
+    history = _empty_history()
+    saved_history = checkpoint.get("history", {})
+    if isinstance(saved_history, dict):
+        for key in history:
+            value = saved_history.get(key, [])
+            history[key] = list(value) if isinstance(value, (list, tuple)) else []
+    return history
+
+
+def _score_from_metrics(metrics, monitor):
+    monitor_key = monitor.replace("val_", "")
+    if not isinstance(metrics, dict) or monitor_key not in metrics:
+        return None
+    return float(metrics[monitor_key])
+
+
+def _load_resume_state(
+    resume_path,
+    model,
+    optimizer,
+    scheduler,
+    scaler,
+    device,
+    expected_model_config,
+    monitor,
+    default_best_score,
+):
+    checkpoint = load_checkpoint_payload(resume_path, device=device)
+    load_checkpoint(
+        resume_path,
+        model,
+        device,
+        optimizer=optimizer,
+        expected_model_config=expected_model_config,
+        checkpoint=checkpoint,
+    )
+    if scheduler is not None and checkpoint.get("scheduler_state_dict") is not None:
+        try:
+            scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
+        except (ValueError, RuntimeError) as exc:
+            warnings.warn(f"Scheduler state was not restored: {exc}", RuntimeWarning, stacklevel=2)
+    if scaler is not None and checkpoint.get("scaler_state_dict") is not None:
+        try:
+            scaler.load_state_dict(checkpoint["scaler_state_dict"])
+        except (ValueError, RuntimeError) as exc:
+            warnings.warn(f"AMP scaler state was not restored: {exc}", RuntimeWarning, stacklevel=2)
+
+    best_metrics = checkpoint.get("best_metrics", {})
+    best_score = checkpoint.get("best_score")
+    if best_score is None:
+        best_score = _score_from_metrics(best_metrics, monitor)
+    if best_score is None:
+        best_score = _score_from_metrics(checkpoint.get("val_metrics", {}), monitor)
+    return {
+        "start_epoch": int(checkpoint.get("epoch", 0)) + 1,
+        "history": _history_from_checkpoint(checkpoint),
+        "best_score": default_best_score if best_score is None else float(best_score),
+        "bad_epochs": int(checkpoint.get("bad_epochs", 0)),
+        "best_metrics": best_metrics if isinstance(best_metrics, dict) else {},
+        "best_epoch": checkpoint.get("best_epoch"),
+        "checkpoint": checkpoint,
+    }
+
+
 def train_model(
     model,
     train_loader,
@@ -133,6 +213,7 @@ def train_model(
     scheduler,
     device,
     config,
+    resume_path=None,
 ):
     training_cfg = config.get("training", {})
     paths_cfg = config.get("paths", {})
@@ -161,19 +242,40 @@ def train_model(
     last_path = checkpoint_dir / "last_model.pth"
     start = time.time()
 
-    history = {
-        "epoch": [],
-        "train_loss": [],
-        "val_loss": [],
-        "val_dice": [],
-        "val_iou": [],
-        "val_precision": [],
-        "val_recall": [],
-        "val_specificity": [],
-        "val_boundary_f1": [],
-    }
+    history = _empty_history()
+    start_epoch = 1
+    if resume_path is not None:
+        resume_state = _load_resume_state(
+            resume_path=resume_path,
+            model=model,
+            optimizer=optimizer,
+            scheduler=scheduler,
+            scaler=scaler,
+            device=device,
+            expected_model_config=config.get("model", {}),
+            monitor=monitor,
+            default_best_score=best_score,
+        )
+        start_epoch = resume_state["start_epoch"]
+        history = resume_state["history"]
+        best_score = resume_state["best_score"]
+        bad_epochs = resume_state["bad_epochs"]
+        best_metrics = resume_state["best_metrics"]
+        best_epoch = resume_state["best_epoch"]
+        print(f"Resuming training from {resume_path} at epoch {start_epoch}/{epochs}.")
 
-    for epoch in range(1, epochs + 1):
+        if not best_metrics and best_path.exists():
+            try:
+                best_checkpoint = load_checkpoint_payload(best_path, device=device)
+                best_metrics = best_checkpoint.get("best_metrics", best_checkpoint.get("val_metrics", {}))
+                best_epoch = best_checkpoint.get("best_epoch", best_checkpoint.get("epoch", best_epoch))
+                restored_score = _score_from_metrics(best_metrics, monitor)
+                if restored_score is not None:
+                    best_score = restored_score
+            except Exception as exc:  # noqa: BLE001
+                warnings.warn(f"Existing best checkpoint was not inspected during resume: {exc}", RuntimeWarning, stacklevel=2)
+
+    for epoch in range(start_epoch, epochs + 1):
         print(f"Epoch {epoch}/{epochs}")
         train_metrics = train_one_epoch(
             model,
@@ -228,8 +330,15 @@ def train_model(
             "epoch": epoch,
             "model_state_dict": model.state_dict(),
             "optimizer_state_dict": optimizer.state_dict(),
+            "scheduler_state_dict": scheduler.state_dict() if scheduler is not None else None,
+            "scaler_state_dict": scaler.state_dict() if scaler is not None else None,
             "config": config,
             "val_metrics": val_metrics,
+            "history": history,
+            "best_score": best_score,
+            "best_metrics": best_metrics,
+            "best_epoch": best_epoch,
+            "bad_epochs": bad_epochs,
             "metadata": {
                 "created_at_utc": datetime.now(timezone.utc).isoformat(),
                 "python_version": platform.python_version(),
@@ -238,7 +347,6 @@ def train_model(
                 "monitor_mode": mode,
             },
         }
-        save_checkpoint(state, last_path)
 
         monitor_key = monitor.replace("val_", "")
         if monitor_key not in val_metrics:
@@ -251,19 +359,29 @@ def train_model(
             bad_epochs = 0
             best_metrics = val_metrics
             best_epoch = epoch
+            state["best_score"] = best_score
+            state["best_metrics"] = best_metrics
+            state["best_epoch"] = best_epoch
+            state["bad_epochs"] = bad_epochs
             save_checkpoint(state, best_path)
             print(f"Saved best checkpoint to {best_path}")
         else:
             bad_epochs += 1
+            state["bad_epochs"] = bad_epochs
             if early_enabled and bad_epochs >= patience:
                 print(f"Early stopping triggered after {bad_epochs} non-improving epochs.")
+                save_checkpoint(state, last_path)
                 break
+        save_checkpoint(state, last_path)
 
     training_time = format_time(time.time() - start)
     _save_metrics_csv(history, output_dir)
     plot_training_curves(history, curves_dir / "training_curves.png")
+    checkpoint_for_samples = best_path if best_path.exists() else resume_path
+    if checkpoint_for_samples is None:
+        raise FileNotFoundError("No best checkpoint is available for sample prediction.")
     load_checkpoint(
-        best_path,
+        checkpoint_for_samples,
         model,
         device,
         expected_model_config=config.get("model", {}),

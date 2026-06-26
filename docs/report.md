@@ -27,6 +27,7 @@ The system consists of the following modules:
 - Dataset loading: strict image/mask stem matching, binary mask conversion, synchronized augmentation.
 - Model factory: U-Net, Attention U-Net, U-Net++, DeepLabV3+, FPN.
 - Training: mixed precision, scheduler, early stopping, best/last checkpoints.
+- Resume training: restore model, optimizer, scheduler, AMP scaler, history, and early-stopping state from `last_model.pth`.
 - Evaluation: Dice, IoU, Precision, Recall/Sensitivity, Specificity, Boundary F1, validation loss.
 - Visualization: training curves, prediction masks, overlays, lesion area ratio.
 - Kaggle workflow: GPU training and output export.
@@ -425,6 +426,10 @@ v1.3 流程用于验证一个假设：对比度感知增强和更重视 false ne
 The default model is not changed by v1.3 code alone. Replacement is considered only when the completed Kaggle comparison shows a low-contrast Dice improvement of at least `+0.02` or low-contrast Recall improvement of at least `+0.03`, while overall internal-test Dice drops by no more than `0.01`.
 
 v1.3 代码本身不会改变默认模型。只有当完成的 Kaggle 对比显示低对比度 Dice 至少提升 `+0.02` 或低对比度 Recall 至少提升 `+0.03`，且整体 internal-test Dice 下降不超过 `0.01` 时，才考虑替换默认模型。
+
+The v1.3 Kaggle script is restart-safe. It skips variants marked with `completed.json` and resumes unfinished variants from `last_model.pth`, which is important when Kaggle GPU sessions reach their maximum runtime.
+
+v1.3 Kaggle 脚本支持重提续跑。它会跳过带有 `completed.json` 的 variant，并从未完成 variant 的 `last_model.pth` 继续训练，这对 Kaggle GPU 会话达到最长运行时间的场景很重要。
 
 ### 9.8 Runtime and Deployment Characteristics / 运行时与部署特性
 

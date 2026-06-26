@@ -146,6 +146,20 @@ High-accuracy model:
 python train.py --config configs/kaggle_high_accuracy.yaml
 ```
 
+Resume interrupted training:
+
+断点续训：
+
+```bash
+python train.py \
+  --config configs/kaggle_high_accuracy.yaml \
+  --resume /kaggle/working/checkpoints/last_model.pth
+```
+
+Use `last_model.pth` for resume. Use `best_model.pth` for evaluation, prediction, and Gradio Demo.
+
+使用 `last_model.pth` 断点续训。评估、预测和 Gradio Demo 使用 `best_model.pth`。
+
 Actual completed high-accuracy configuration:
 
 实际完成的高精度配置：
@@ -264,6 +278,18 @@ Full run:
 ```bash
 python notebooks/kaggle_low_contrast_v1_3.py
 ```
+
+Restart after Kaggle time limit:
+
+Kaggle 时间到后继续：
+
+```bash
+python notebooks/kaggle_low_contrast_v1_3.py
+```
+
+Re-submit the same script. The workflow skips variants with `completed.json` and resumes unfinished variants from their local `checkpoints/last_model.pth`.
+
+重新提交同一个脚本即可。流程会跳过已有 `completed.json` 的 variant，并从未完成 variant 的 `checkpoints/last_model.pth` 继续。
 
 Variants:
 
