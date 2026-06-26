@@ -17,7 +17,7 @@ def main():
     if REPOSITORY_ROOT.exists():
         run(["rm", "-rf", REPOSITORY_ROOT])
     run(["git", "clone", "--depth", "1", REPOSITORY_URL, REPOSITORY_ROOT])
-    run([sys.executable, "notebooks/kaggle_aggressive_v1_4.py"], cwd=REPOSITORY_ROOT)
+    run([sys.executable, "notebooks/kaggle_aggressive_v1_4.py", "--use-existing-repo"], cwd=REPOSITORY_ROOT)
 
 
 if __name__ == "__main__":

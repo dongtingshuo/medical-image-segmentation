@@ -476,15 +476,19 @@ def main():
     parser = argparse.ArgumentParser(description="Run aggressive v1.4 Kaggle segmentation experiments.")
     parser.add_argument("--debug", action="store_true")
     parser.add_argument("--retry-failed", action="store_true")
+    parser.add_argument("--use-existing-repo", action="store_true")
     args = parser.parse_args()
 
     os.environ.setdefault("MPLCONFIGDIR", "/kaggle/working/matplotlib-cache")
     internal_dataset = resolve_dataset(INTERNAL_DATASET_REF, "ISIC 2017 internal dataset")
     external_dataset = resolve_dataset(EXTERNAL_DATASET_REF, "ISIC 2018 external dataset")
 
-    if REPOSITORY_ROOT.exists():
-        shutil.rmtree(REPOSITORY_ROOT)
-    run(["git", "clone", "--depth", "1", REPOSITORY_URL, REPOSITORY_ROOT])
+    if args.use_existing_repo and REPOSITORY_ROOT.exists():
+        print(f"Using existing repository: {REPOSITORY_ROOT}", flush=True)
+    else:
+        if REPOSITORY_ROOT.exists():
+            shutil.rmtree(REPOSITORY_ROOT)
+        run(["git", "clone", "--depth", "1", REPOSITORY_URL, REPOSITORY_ROOT])
     commit = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=REPOSITORY_ROOT, text=True).strip()
     print("Repository commit:", commit, flush=True)
 
