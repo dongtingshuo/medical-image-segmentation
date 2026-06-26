@@ -19,6 +19,8 @@ from src.utils import (
     load_config,
 )
 
+VALID_EVALUATION_SPLITS = ("val", "test", "external")
+
 
 @torch.no_grad()
 def evaluate(model, dataloader, criterion, device, threshold=0.5):
@@ -58,11 +60,24 @@ def evaluate(model, dataloader, criterion, device, threshold=0.5):
     return {key: value / max(count, 1) for key, value in totals.items()}
 
 
+def resolve_split_paths(config, split):
+    if split not in VALID_EVALUATION_SPLITS:
+        raise ValueError(f"Unsupported evaluation split: {split}. Expected one of {VALID_EVALUATION_SPLITS}.")
+    images_value = data_path(config, f"{split}_images_dir")
+    masks_value = data_path(config, f"{split}_masks_dir")
+    if not images_value or not masks_value:
+        raise ValueError(
+            f"Config does not define {split}_images_dir and {split}_masks_dir. "
+            f"Add them under the `data` section before evaluating the {split} split."
+        )
+    return Path(images_value), Path(masks_value)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", required=True)
     parser.add_argument("--checkpoint", required=True)
-    parser.add_argument("--split", choices=["val", "test"], default="val")
+    parser.add_argument("--split", choices=VALID_EVALUATION_SPLITS, default="val")
     parser.add_argument("--threshold", type=float, default=0.5)
     args = parser.parse_args()
 
@@ -73,15 +88,7 @@ def main():
     checkpoint = Path(args.checkpoint)
     if not checkpoint.exists():
         raise FileNotFoundError(f"Checkpoint does not exist: {checkpoint}")
-    images_value = data_path(config, f"{args.split}_images_dir")
-    masks_value = data_path(config, f"{args.split}_masks_dir")
-    if not images_value or not masks_value:
-        raise ValueError(
-            f"Config does not define {args.split}_images_dir and {args.split}_masks_dir. "
-            f"Add them under the `data` section before evaluating the {args.split} split."
-        )
-    images_path = Path(images_value)
-    masks_path = Path(masks_value)
+    images_path, masks_path = resolve_split_paths(config, args.split)
     if not images_path.exists() or not masks_path.exists():
         raise FileNotFoundError(f"{args.split} paths do not exist: images={images_path}, masks={masks_path}")
 
