@@ -650,19 +650,46 @@ The v1.3 Kaggle script is restart-safe. If a Kaggle GPU session stops because of
 
 v1.3 Kaggle 脚本支持重提续跑。如果 Kaggle GPU 因时间限制停止，重新提交同一个脚本即可。已有 `completed.json` 的 variant 会被跳过，未完成 variant 会在可用时从 `checkpoints/last_model.pth` 继续训练。
 
-Expected comparison outputs:
+Completed v1.3 comparison outputs:
 
-预期对比输出：
+已完成 v1.3 对比输出：
 
 ```text
-research_v1_3_low_contrast/comparison/low_contrast_comparison.csv
-research_v1_3_low_contrast/comparison/low_contrast_comparison.md
-research_v1_3_low_contrast/execution_manifest.json
+kaggle_outputs/low_contrast_v1_3/research_v1_3_low_contrast/comparison/low_contrast_comparison.csv
+kaggle_outputs/low_contrast_v1_3/research_v1_3_low_contrast/comparison/low_contrast_comparison.md
+kaggle_outputs/low_contrast_v1_3/research_v1_3_low_contrast/execution_manifest.json
+kaggle_outputs/low_contrast_v1_3/release_artifacts/medical-segmentation-low-contrast-artifacts-v1.3.zip
 ```
 
-The default model remains `configs/final_model.yaml` unless v1.3 improves internal-test low-contrast Dice by at least `+0.02` or low-contrast Recall by at least `+0.03`, while keeping overall internal-test Dice drop within `0.01`.
+The completed v1.3 run selected `contrast_aug_bce_dice` as the best variant, but it did not meet the replacement threshold. The default inference model therefore remains `configs/final_model.yaml` with `checkpoints/best_model.pth`.
 
-默认模型仍为 `configs/final_model.yaml`，除非 v1.3 在 internal test 的低对比度 Dice 上至少提升 `+0.02`，或低对比度 Recall 至少提升 `+0.03`，同时整体 internal-test Dice 下降不超过 `0.01`。
+完整 v1.3 运行选择 `contrast_aug_bce_dice` 为最佳变体，但未达到替换阈值。因此默认推理模型仍为 `configs/final_model.yaml` 配合 `checkpoints/best_model.pth`。
+
+Internal test comparison:
+
+内部 test 对比：
+
+| Variant | Threshold | Overall Dice | Overall IoU | Overall Recall | Low-Contrast Dice | Low-Contrast Recall |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `control_bce_dice` | 0.55 | 0.861450 | 0.780606 | 0.834723 | 0.832174 | 0.794502 |
+| `contrast_aug_bce_dice` | 0.40 | 0.864766 | 0.786815 | 0.854536 | 0.832973 | 0.803791 |
+| `contrast_aug_focal_dice` | 0.30 | 0.854879 | 0.773633 | 0.816629 | 0.823747 | 0.774196 |
+| `contrast_aug_tversky` | 0.30 | 0.861633 | 0.783278 | 0.834675 | 0.829922 | 0.788755 |
+
+External split comparison:
+
+外部集对比：
+
+| Variant | Threshold | Overall Dice | Overall IoU | Overall Recall | Low-Contrast Dice | Low-Contrast Recall |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `control_bce_dice` | 0.55 | 0.919484 | 0.863438 | 0.912475 | 0.888860 | 0.898134 |
+| `contrast_aug_bce_dice` | 0.40 | 0.924386 | 0.871648 | 0.939157 | 0.893134 | 0.921865 |
+| `contrast_aug_focal_dice` | 0.30 | 0.919805 | 0.862216 | 0.894180 | 0.895264 | 0.875070 |
+| `contrast_aug_tversky` | 0.30 | 0.923318 | 0.869720 | 0.916866 | 0.891569 | 0.890545 |
+
+The best internal-test low-contrast improvement was modest: `contrast_aug_bce_dice` improved low-contrast Dice by `+0.000800` and low-contrast Recall by `+0.009289`. This is below the configured replacement criteria of `+0.02` Dice or `+0.03` Recall.
+
+最佳 internal-test 低对比度提升幅度较小：`contrast_aug_bce_dice` 将低对比度 Dice 提升 `+0.000800`，低对比度 Recall 提升 `+0.009289`。该幅度低于预设的 `+0.02` Dice 或 `+0.03` Recall 替换标准。
 
 ## Visualization / 可视化结果
 

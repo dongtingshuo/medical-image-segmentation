@@ -431,6 +431,40 @@ The v1.3 Kaggle script is restart-safe. It skips variants marked with `completed
 
 v1.3 Kaggle 脚本支持重提续跑。它会跳过带有 `completed.json` 的 variant，并从未完成 variant 的 `last_model.pth` 继续训练，这对 Kaggle GPU 会话达到最长运行时间的场景很重要。
 
+The completed v1.3 run used source commit `f63353a9f6f5ed81a52e923ad1a2b1894a78d0c4`, image size `384`, batch size `8`, U-Net++ with EfficientNet-B3 encoder, and the internal ISIC 2017 plus external ISIC 2018 splits. The comparison report selected `contrast_aug_bce_dice` as the best variant, but it did not recommend replacing the default model.
+
+已完成的 v1.3 运行使用源码 commit `f63353a9f6f5ed81a52e923ad1a2b1894a78d0c4`，输入尺寸 `384`，batch size `8`，模型为 U-Net++ + EfficientNet-B3 encoder，并评估 ISIC 2017 内部划分和 ISIC 2018 外部划分。对比报告选择 `contrast_aug_bce_dice` 为最佳变体，但不建议替换默认模型。
+
+Internal test results:
+
+内部 test 结果：
+
+| Variant | Threshold | Overall Dice | Overall IoU | Precision | Recall | Low-Contrast Dice | Low-Contrast Recall |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| `control_bce_dice` | 0.55 | 0.861450 | 0.780606 | 0.938496 | 0.834723 | 0.832174 | 0.794502 |
+| `contrast_aug_bce_dice` | 0.40 | 0.864766 | 0.786815 | 0.925761 | 0.854536 | 0.832973 | 0.803791 |
+| `contrast_aug_focal_dice` | 0.30 | 0.854879 | 0.773633 | 0.951718 | 0.816629 | 0.823747 | 0.774196 |
+| `contrast_aug_tversky` | 0.30 | 0.861633 | 0.783278 | 0.943520 | 0.834675 | 0.829922 | 0.788755 |
+
+External split results:
+
+外部集结果：
+
+| Variant | Threshold | Overall Dice | Overall IoU | Precision | Recall | Low-Contrast Dice | Low-Contrast Recall |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| `control_bce_dice` | 0.55 | 0.919484 | 0.863438 | 0.944461 | 0.912475 | 0.888860 | 0.898134 |
+| `contrast_aug_bce_dice` | 0.40 | 0.924386 | 0.871648 | 0.926705 | 0.939157 | 0.893134 | 0.921865 |
+| `contrast_aug_focal_dice` | 0.30 | 0.919805 | 0.862216 | 0.963415 | 0.894180 | 0.895264 | 0.875070 |
+| `contrast_aug_tversky` | 0.30 | 0.923318 | 0.869720 | 0.948527 | 0.916866 | 0.891569 | 0.890545 |
+
+The internal test split is the primary replacement gate. On this split, `contrast_aug_bce_dice` improved overall Dice by `+0.003316`, low-contrast Dice by `+0.000800`, and low-contrast Recall by `+0.009289`. These changes are positive but below the replacement criterion. On the external split, `contrast_aug_bce_dice` improved overall Dice by `+0.004902` and low-contrast Recall by `+0.023732`, suggesting better recall under domain shift, but the evidence is still insufficient to change the default model.
+
+internal test 是默认模型替换的主要判断依据。在该划分上，`contrast_aug_bce_dice` 将整体 Dice 提升 `+0.003316`，低对比度 Dice 提升 `+0.000800`，低对比度 Recall 提升 `+0.009289`。这些变化为正，但低于替换标准。在外部集上，`contrast_aug_bce_dice` 将整体 Dice 提升 `+0.004902`，低对比度 Recall 提升 `+0.023732`，说明其在域迁移下可能改善召回，但证据仍不足以改变默认模型。
+
+The downloaded prediction samples did not show all-black or all-white masks. Sample foreground ratios for predicted masks were approximately `2.0%` to `3.9%`, which is visually consistent with non-empty lesion predictions in the inspected samples.
+
+下载的预测样例未出现全黑或全白 mask。预测 mask 的样例前景比例约为 `2.0%` 到 `3.9%`，与检查样例中的非空病灶预测一致。
+
 ### 9.8 Runtime and Deployment Characteristics / 运行时与部署特性
 
 The best repeated checkpoint contains 13.62M trainable parameters. On Kaggle Tesla P100, FP32 forward latency is 23.867 ms per 384x384 image, corresponding to 41.898 images/s. CPU inference remains usable for single-image local demo scenarios at 497.374 ms per image, but batch processing should prefer CUDA.

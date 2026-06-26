@@ -11,6 +11,7 @@
 - Added low-contrast variant comparison reports and replacement-decision criteria.
 - Added training resume support from `last_model.pth`, including optimizer, scheduler, AMP scaler, metric history, and early-stopping state.
 - Made the v1.3 Kaggle workflow restart-safe with completed-variant skipping and automatic resume.
+- Reported the completed v1.3 Kaggle results; `contrast_aug_bce_dice` was best but did not meet the configured default-model replacement threshold.
 
 ## v1.2.0 - 2026-06-25
 

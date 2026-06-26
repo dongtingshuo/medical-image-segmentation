@@ -313,9 +313,35 @@ Main outputs:
 /kaggle/working/release_artifacts/medical-segmentation-low-contrast-artifacts-v1.3.zip
 ```
 
-Do not replace the default model unless the comparison report recommends replacement and visual samples are acceptable.
+Completed local download:
 
-除非 comparison report 建议替换且预测样例视觉正常，否则不要替换默认模型。
+已完成本地下载：
+
+```text
+kaggle_outputs/low_contrast_v1_3/research_v1_3_low_contrast/comparison/low_contrast_comparison.csv
+kaggle_outputs/low_contrast_v1_3/research_v1_3_low_contrast/comparison/low_contrast_comparison.md
+kaggle_outputs/low_contrast_v1_3/research_v1_3_low_contrast/execution_manifest.json
+kaggle_outputs/low_contrast_v1_3/release_artifacts/medical-segmentation-low-contrast-artifacts-v1.3.zip
+```
+
+Completed v1.3 decision:
+
+已完成 v1.3 决策：
+
+| Item | Result |
+| --- | --- |
+| Best variant | `contrast_aug_bce_dice` |
+| Internal test Dice | `0.864766` |
+| Internal test IoU | `0.786815` |
+| Internal low-contrast Dice delta | `+0.000800` |
+| Internal low-contrast Recall delta | `+0.009289` |
+| External Dice | `0.924386` |
+| External low-contrast Recall delta | `+0.023732` |
+| Replace default model | `No` |
+
+Do not replace the default model. The completed comparison report did not meet the configured replacement criterion of at least `+0.02` internal low-contrast Dice improvement or `+0.03` internal low-contrast Recall improvement.
+
+不要替换默认模型。已完成对比报告没有达到预设替换标准，即 internal 低对比度 Dice 至少提升 `+0.02` 或 internal 低对比度 Recall 至少提升 `+0.03`。
 
 ## 8. Downloading Kaggle Outputs / 下载 Kaggle 输出
 
