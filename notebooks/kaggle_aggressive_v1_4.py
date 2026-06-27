@@ -88,13 +88,41 @@ DEBUG_EXPERIMENTS = [
 TTA_VARIANTS = [
     {"name": "fast", "scales": "1.0", "horizontal_flip": False, "vertical_flip": False, "min_component_area": 0, "fill_holes": False},
     {"name": "flip_tta", "scales": "1.0", "horizontal_flip": True, "vertical_flip": True, "min_component_area": 0, "fill_holes": False},
-    {"name": "best_accuracy", "scales": "0.875,1.0,1.125", "horizontal_flip": True, "vertical_flip": True, "min_component_area": 64, "fill_holes": True},
+    {
+        "name": "best_accuracy",
+        "scales": "0.875,1.0,1.125",
+        "horizontal_flip": True,
+        "vertical_flip": True,
+        "min_component_area": 64,
+        "fill_holes": True,
+        "batch_size": 1,
+    },
 ]
 
 
 def run(command, cwd=None):
     print(">>>", " ".join(str(part) for part in command), flush=True)
     subprocess.run([str(part) for part in command], cwd=cwd, check=True)
+
+
+def run_logged(command, log_path, cwd=None):
+    command = [str(part) for part in command]
+    print(">>>", " ".join(command), flush=True)
+    result = subprocess.run(command, cwd=cwd, text=True, capture_output=True)
+    log_path = Path(log_path)
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    log_path.write_text((result.stdout or "") + "\n" + (result.stderr or ""), encoding="utf-8")
+    if result.stdout:
+        print(result.stdout, flush=True)
+    if result.stderr:
+        print(result.stderr, flush=True)
+    if result.returncode != 0:
+        raise subprocess.CalledProcessError(
+            result.returncode,
+            command,
+            output=result.stdout,
+            stderr=result.stderr,
+        )
 
 
 def load_yaml(path):
@@ -205,6 +233,15 @@ def read_best_threshold(path):
     return float(best["threshold"])
 
 
+def analysis_output_is_current(path):
+    path = Path(path)
+    if not path.exists():
+        return False
+    with path.open("r", newline="", encoding="utf-8") as handle:
+        row = next(csv.DictReader(handle), {})
+    return row.get("aggregation") == "macro_per_image" and "micro_dice" in row
+
+
 def run_threshold_search(config_path, checkpoint_path, output_dir):
     run(
         [
@@ -253,10 +290,16 @@ def evaluate_split(config_path, checkpoint_path, split, output_dir, threshold):
 
 
 def evaluate_tta_variants(config_path, checkpoint_path, experiment_root, threshold, debug=False):
+    experiment_root = Path(experiment_root)
+    experiment_root.mkdir(parents=True, exist_ok=True)
     tta_variants = TTA_VARIANTS[:1] if debug else TTA_VARIANTS
+    failures = []
     for variant in tta_variants:
         for split in ["test", "external"]:
             output_dir = experiment_root / f"tta_{variant['name']}_{split}"
+            if analysis_output_is_current(output_dir / "tta_postprocess_metrics.csv"):
+                print(f"TTA result already exists, skipping: {output_dir}", flush=True)
+                continue
             command = [
                 sys.executable,
                 "scripts/evaluate_tta_postprocess.py",
@@ -275,13 +318,32 @@ def evaluate_tta_variants(config_path, checkpoint_path, experiment_root, thresho
                 "--output-dir",
                 output_dir,
             ]
+            if variant.get("batch_size"):
+                command.extend(["--batch-size", str(variant["batch_size"])])
             if variant["horizontal_flip"]:
                 command.append("--horizontal-flip")
             if variant["vertical_flip"]:
                 command.append("--vertical-flip")
             if variant["fill_holes"]:
                 command.append("--fill-holes")
-            run(command, cwd=REPOSITORY_ROOT)
+            try:
+                run_logged(command, output_dir / "evaluation.log", cwd=REPOSITORY_ROOT)
+            except Exception as exc:  # noqa: BLE001
+                failures.append(
+                    {
+                        "variant": variant["name"],
+                        "split": split,
+                        "error": repr(exc),
+                        "log": str(output_dir / "evaluation.log"),
+                    }
+                )
+                print(f"TTA `{variant['name']}` on `{split}` failed: {exc}", flush=True)
+    failures_path = experiment_root / "tta_failures.json"
+    if failures:
+        failures_path.write_text(json.dumps(failures, indent=2), encoding="utf-8")
+    elif failures_path.exists():
+        failures_path.unlink()
+    return failures
 
 
 def mark_failed(path, experiment, exc):
@@ -299,9 +361,11 @@ def run_experiment(experiment, base_config, experiments_root, debug=False, retry
     experiment_root = experiments_root / experiment["name"]
     completed_path = experiment_root / "completed.json"
     failed_path = experiment_root / "failed.json"
-    if completed_path.exists():
+    if completed_path.exists() and not retry_failed:
         print(f"Experiment `{experiment['name']}` already completed. Skipping.", flush=True)
         return json.loads(completed_path.read_text(encoding="utf-8"))
+    if completed_path.exists() and retry_failed:
+        completed_path.unlink()
     if failed_path.exists() and not retry_failed:
         print(f"Experiment `{experiment['name']}` has failed.json. Skipping; pass --retry-failed to retry.", flush=True)
         return json.loads(failed_path.read_text(encoding="utf-8"))
@@ -323,22 +387,33 @@ def run_experiment(experiment, base_config, experiments_root, debug=False, retry
                 f"Fine-tune source checkpoint is missing for {experiment['name']}: {parent_best}"
             )
         resume_path = parent_best
-    trained_config = train_with_oom_fallback(
-        config_path,
-        config,
-        experiment_root / "train.log",
-        resume_path=resume_path if resume_path.exists() else None,
-    )
-    write_yaml(config_path, trained_config)
     checkpoint_path = experiment_root / "checkpoints/best_model.pth"
+    training_complete = checkpoint_path.exists() and (experiment_root / "outputs/experiment_results.csv").exists()
+    if training_complete:
+        print(f"Training outputs already exist for `{experiment['name']}`; resuming analysis only.", flush=True)
+        trained_config = config
+    else:
+        trained_config = train_with_oom_fallback(
+            config_path,
+            config,
+            experiment_root / "train.log",
+            resume_path=resume_path if resume_path.exists() else None,
+        )
+        write_yaml(config_path, trained_config)
     if not checkpoint_path.exists():
         checkpoint_path = experiment_root / "checkpoints/last_model.pth"
-    threshold = run_threshold_search(config_path, checkpoint_path, experiment_root / "threshold_search")
+    threshold_csv = experiment_root / "threshold_search/threshold_search.csv"
+    if threshold_csv.exists():
+        threshold = read_best_threshold(threshold_csv)
+    else:
+        threshold = run_threshold_search(config_path, checkpoint_path, experiment_root / "threshold_search")
     trained_config.setdefault("inference", {})["threshold"] = threshold
     write_yaml(config_path, trained_config)
     for split in SPLITS:
-        evaluate_split(config_path, checkpoint_path, split, experiment_root / f"evaluation_{split}", threshold)
-    evaluate_tta_variants(config_path, checkpoint_path, experiment_root, threshold, debug=debug)
+        metrics_path = experiment_root / f"evaluation_{split}/metrics.csv"
+        if not metrics_path.exists():
+            evaluate_split(config_path, checkpoint_path, split, experiment_root / f"evaluation_{split}", threshold)
+    tta_failures = evaluate_tta_variants(config_path, checkpoint_path, experiment_root, threshold, debug=debug)
     summary = {
         "experiment": experiment["name"],
         "stage": experiment.get("stage"),
@@ -346,6 +421,7 @@ def run_experiment(experiment, base_config, experiments_root, debug=False, retry
         "best_threshold": threshold,
         "batch_size": trained_config["training"]["batch_size"],
         "gradient_accumulation_steps": trained_config["training"].get("gradient_accumulation_steps", 1),
+        "tta_failures": len(tta_failures),
     }
     completed_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
     return summary
@@ -364,17 +440,27 @@ def collect_metric_row(path, extra):
 
 def write_summary(experiments_root, output_dir):
     rows = []
-    for completed_path in sorted(experiments_root.glob("*/completed.json")):
-        experiment = completed_path.parent.name
-        summary = json.loads(completed_path.read_text(encoding="utf-8"))
+    experiment_roots = sorted(path for path in experiments_root.glob("*") if path.is_dir())
+    for experiment_root in experiment_roots:
+        experiment = experiment_root.name
+        completed_path = experiment_root / "completed.json"
+        failed_path = experiment_root / "failed.json"
+        marker_path = completed_path if completed_path.exists() else failed_path
+        summary = json.loads(marker_path.read_text(encoding="utf-8")) if marker_path.exists() else {}
+        if completed_path.exists():
+            status = "completed"
+        elif list(experiment_root.glob("evaluation_*/metrics.csv")):
+            status = "partial"
+        else:
+            status = "failed"
         for split in SPLITS:
             rows.append(
                 collect_metric_row(
-                    completed_path.parent / f"evaluation_{split}/metrics.csv",
-                    {"experiment": experiment, "stage": summary.get("stage", ""), "mode": "single_model"},
+                    experiment_root / f"evaluation_{split}/metrics.csv",
+                    {"experiment": experiment, "stage": summary.get("stage", ""), "status": status, "mode": "single_model"},
                 )
             )
-        for tta_path in sorted(completed_path.parent.glob("tta_*_*/tta_postprocess_metrics.csv")):
+        for tta_path in sorted(experiment_root.glob("tta_*_*/tta_postprocess_metrics.csv")):
             name = tta_path.parent.name.replace("tta_", "")
             parts = name.rsplit("_", maxsplit=1)
             rows.append(
@@ -383,17 +469,19 @@ def write_summary(experiments_root, output_dir):
                     {
                         "experiment": experiment,
                         "stage": summary.get("stage", ""),
+                        "status": status,
                         "mode": parts[0] if len(parts) == 2 else name,
                     },
                 )
             )
-        for ensemble_path in sorted(completed_path.parent.glob("ensemble_*/ensemble_metrics.csv")):
+        for ensemble_path in sorted(experiment_root.glob("ensemble_*/ensemble_metrics.csv")):
             rows.append(
                 collect_metric_row(
                     ensemble_path,
                     {
                         "experiment": experiment,
                         "stage": summary.get("stage", ""),
+                        "status": status,
                         "mode": "ensemble",
                     },
                 )
@@ -443,33 +531,47 @@ def run_pair_ensemble(experiments_root):
     member_args = []
     for name in member_names:
         root = experiments_root / name
-        if not (root / "completed.json").exists():
-            print(f"Skipping ensemble because `{name}` is not completed.", flush=True)
-            return
         checkpoint = root / "checkpoints/best_model.pth"
         if not checkpoint.exists():
             checkpoint = root / "checkpoints/last_model.pth"
+        if not checkpoint.exists() or not (root / "runtime_config.yaml").exists():
+            print(f"Skipping ensemble because `{name}` has no usable checkpoint/config.", flush=True)
+            return
         member_args.extend(["--member", f"{root / 'runtime_config.yaml'}:{checkpoint}"])
     ensemble_root = experiments_root / "unetpp_effb4_448"
     threshold = 0.5
     threshold_csv = ensemble_root / "threshold_search/threshold_search.csv"
     if threshold_csv.exists():
         threshold = read_best_threshold(threshold_csv)
+    failures = []
     for split in ["test", "external"]:
-        run(
-            [
-                sys.executable,
-                "scripts/evaluate_ensemble.py",
-                *member_args,
-                "--split",
-                split,
-                "--threshold",
-                f"{threshold:.6f}",
-                "--output-dir",
-                ensemble_root / f"ensemble_b4_unetpp_deeplab_{split}",
-            ],
-            cwd=REPOSITORY_ROOT,
-        )
+        output_dir = ensemble_root / f"ensemble_b4_unetpp_deeplab_{split}"
+        if analysis_output_is_current(output_dir / "ensemble_metrics.csv"):
+            print(f"Ensemble result already exists, skipping: {output_dir}", flush=True)
+            continue
+        command = [
+            sys.executable,
+            "scripts/evaluate_ensemble.py",
+            *member_args,
+            "--split",
+            split,
+            "--threshold",
+            f"{threshold:.6f}",
+            "--batch-size",
+            "1",
+            "--output-dir",
+            output_dir,
+        ]
+        try:
+            run_logged(command, output_dir / "evaluation.log", cwd=REPOSITORY_ROOT)
+        except Exception as exc:  # noqa: BLE001
+            failures.append({"split": split, "error": repr(exc), "log": str(output_dir / "evaluation.log")})
+            print(f"Ensemble on `{split}` failed: {exc}", flush=True)
+    failures_path = ensemble_root / "ensemble_failures.json"
+    if failures:
+        failures_path.write_text(json.dumps(failures, indent=2), encoding="utf-8")
+    elif failures_path.exists():
+        failures_path.unlink()
 
 
 def main():

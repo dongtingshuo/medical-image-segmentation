@@ -86,6 +86,8 @@ DEFAULT_PATTERNS = (
     "research_v1_4_aggressive/experiments/*/runtime_config.yaml",
     "research_v1_4_aggressive/experiments/*/completed.json",
     "research_v1_4_aggressive/experiments/*/failed.json",
+    "research_v1_4_aggressive/experiments/*/tta_failures.json",
+    "research_v1_4_aggressive/experiments/*/ensemble_failures.json",
     "research_v1_4_aggressive/experiments/*/train.log",
     "research_v1_4_aggressive/experiments/*/outputs/curves/*.png",
     "research_v1_4_aggressive/experiments/*/outputs/training_history.csv",
@@ -98,9 +100,11 @@ DEFAULT_PATTERNS = (
     "research_v1_4_aggressive/experiments/*/tta_*/*.csv",
     "research_v1_4_aggressive/experiments/*/tta_*/*.json",
     "research_v1_4_aggressive/experiments/*/tta_*/*.md",
+    "research_v1_4_aggressive/experiments/*/tta_*/evaluation.log",
     "research_v1_4_aggressive/experiments/*/ensemble_*/*.csv",
     "research_v1_4_aggressive/experiments/*/ensemble_*/*.json",
     "research_v1_4_aggressive/experiments/*/ensemble_*/*.md",
+    "research_v1_4_aggressive/experiments/*/ensemble_*/evaluation.log",
 )
 
 

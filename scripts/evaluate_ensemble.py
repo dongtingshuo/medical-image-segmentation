@@ -14,9 +14,23 @@ if str(ROOT) not in sys.path:
 from evaluate import resolve_split_paths  # noqa: E402
 from src.dataset import SkinLesionDataset, get_val_transforms  # noqa: E402
 from src.inference import build_model_from_config  # noqa: E402
-from src.metrics import boundary_f1_score  # noqa: E402
+from src.metrics import (  # noqa: E402
+    boundary_f1_score,
+    dice_score,
+    iou_score,
+    precision_score,
+    recall_score,
+    specificity_score,
+)
 from src.threshold_search import compute_threshold_metrics_from_counts  # noqa: E402
-from src.utils import checkpoint_model_config, create_dirs, get_device, load_checkpoint, load_checkpoint_payload, load_config  # noqa: E402
+from src.utils import (  # noqa: E402
+    checkpoint_model_config,
+    create_dirs,
+    get_device,
+    load_checkpoint,
+    load_checkpoint_payload,
+    load_config,
+)
 
 
 def parse_member(value):
@@ -44,7 +58,14 @@ def _logits_from_probabilities(probabilities):
 @torch.no_grad()
 def evaluate_ensemble(members, loader, device, threshold=0.5):
     counts = {"tp": 0.0, "fp": 0.0, "fn": 0.0, "tn": 0.0, "pixels": 0, "samples": 0}
-    boundary_total = 0.0
+    metric_totals = {
+        "dice": 0.0,
+        "iou": 0.0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "specificity": 0.0,
+        "boundary_f1": 0.0,
+    }
     sample_total = 0
     for images, masks in loader:
         images = images.to(device)
@@ -62,14 +83,23 @@ def evaluate_ensemble(members, loader, device, threshold=0.5):
         counts["pixels"] += int(true.numel())
         counts["samples"] += int(true.shape[0]) if true.ndim >= 3 else 1
         batch_size = int(images.shape[0])
-        boundary_total += float(
-            boundary_f1_score(_logits_from_probabilities(mean_probabilities), masks, threshold=threshold).item()
-        ) * batch_size
+        logits = _logits_from_probabilities(mean_probabilities)
+        batch_metrics = {
+            "dice": dice_score(logits, masks, threshold=threshold).item(),
+            "iou": iou_score(logits, masks, threshold=threshold).item(),
+            "precision": precision_score(logits, masks, threshold=threshold).item(),
+            "recall": recall_score(logits, masks, threshold=threshold).item(),
+            "specificity": specificity_score(logits, masks, threshold=threshold).item(),
+            "boundary_f1": boundary_f1_score(logits, masks, threshold=threshold).item(),
+        }
+        for key, value in batch_metrics.items():
+            metric_totals[key] += float(value) * batch_size
         sample_total += batch_size
-    metrics = compute_threshold_metrics_from_counts(counts["tp"], counts["fp"], counts["fn"], counts["tn"])
+    metrics = {key: value / max(sample_total, 1) for key, value in metric_totals.items()}
+    micro_metrics = compute_threshold_metrics_from_counts(counts["tp"], counts["fp"], counts["fn"], counts["tn"])
+    metrics.update({f"micro_{key}": value for key, value in micro_metrics.items()})
     metrics.update(
         {
-            "boundary_f1": boundary_total / max(sample_total, 1),
             "samples": counts["samples"],
             "pixels": counts["pixels"],
             "tp": int(counts["tp"]),
@@ -99,11 +129,15 @@ def write_outputs(metrics, output_dir, settings):
         f"- Split: `{settings['split']}`",
         f"- Threshold: `{settings['threshold']:.3f}`",
         f"- Members: `{settings['members']}`",
+        f"- Batch size: `{settings['batch_size']}`",
+        "- Primary aggregation: `macro_per_image`",
         "",
         "| Metric | Value |",
         "| --- | ---: |",
     ]
     for key in ["dice", "iou", "precision", "recall", "specificity", "boundary_f1"]:
+        lines.append(f"| {key} | {metrics[key]:.6f} |")
+    for key in ["micro_dice", "micro_iou", "micro_precision", "micro_recall", "micro_specificity"]:
         lines.append(f"| {key} | {metrics[key]:.6f} |")
     md_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return {"csv": csv_path, "json": json_path, "markdown": md_path}
@@ -116,20 +150,24 @@ def main():
     parser.add_argument("--threshold", type=float, default=0.5)
     parser.add_argument("--output-dir", default="outputs/ensemble")
     parser.add_argument("--device", default=None)
+    parser.add_argument("--batch-size", type=int, default=None)
     args = parser.parse_args()
 
     if len(args.member) < 2:
         raise ValueError("At least two ensemble members are required.")
     if not 0.0 <= args.threshold <= 1.0:
         raise ValueError(f"threshold must be between 0 and 1, got {args.threshold}")
+    if args.batch_size is not None and args.batch_size <= 0:
+        raise ValueError(f"batch_size must be positive, got {args.batch_size}")
     parsed_members = [parse_member(value) for value in args.member]
     base_config = load_config(parsed_members[0][0])
     images_path, masks_path = resolve_split_paths(base_config, args.split)
     device = get_device(args.device or base_config.get("device", "auto"))
     dataset = SkinLesionDataset(images_path, masks_path, transform=get_val_transforms(base_config))
+    batch_size = args.batch_size or int(base_config.get("training", {}).get("batch_size", 8))
     loader = DataLoader(
         dataset,
-        batch_size=int(base_config.get("training", {}).get("batch_size", 8)),
+        batch_size=batch_size,
         shuffle=False,
         num_workers=int(base_config.get("training", {}).get("num_workers", 2)),
         pin_memory=device.type == "cuda",
@@ -140,6 +178,8 @@ def main():
         "split": args.split,
         "threshold": args.threshold,
         "members": ";".join(member["checkpoint"] for member in members),
+        "batch_size": int(batch_size),
+        "aggregation": "macro_per_image",
     }
     outputs = write_outputs(metrics, args.output_dir, settings)
     print(f"Saved ensemble metrics to {outputs['csv']}")

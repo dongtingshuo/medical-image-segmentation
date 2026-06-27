@@ -698,6 +698,22 @@ Version 1.4 adds an aggressive but restart-safe Kaggle workflow for higher-capac
 
 v1.4 新增更激进但可断点续跑的 Kaggle 提分流程，重点测试 448/512 分辨率、EfficientNet-B4/B5、DeepLabV3+、TTA 和 mask 后处理。
 
+The completed Kaggle run used source commit `e893e5a2a73c4c3c248abacdc39171375f38f59a`. All four models finished training. Comparable per-image macro metrics are:
+
+已完成的 Kaggle 运行使用源码 commit `e893e5a2a73c4c3c248abacdc39171375f38f59a`，四个模型均完成训练。可直接比较的逐图 macro 指标如下：
+
+| Candidate | Internal test Dice | External Dice | Test Boundary F1 | External Boundary F1 |
+| --- | ---: | ---: | ---: | ---: |
+| v1.3 `contrast_aug_bce_dice` reference | 0.864766 | 0.924386 | 0.437615 | 0.593236 |
+| U-Net++ EfficientNet-B4 448 | 0.860389 | **0.925023** | 0.386077 | 0.506854 |
+| U-Net++ EfficientNet-B4 512 fine-tune | 0.862619 | 0.918162 | 0.359950 | 0.418853 |
+| DeepLabV3+ EfficientNet-B4 448 | 0.859388 | 0.913495 | 0.392166 | 0.432164 |
+| U-Net++ EfficientNet-B5 448 | **0.864376** | 0.919449 | **0.395422** | **0.506858** |
+
+No v1.4 candidate passed the replacement rule, so the default inference model remains unchanged. The original v1.4 TTA files reported pixel-level micro metrics; for example, the 512 fine-tune reached micro-Dice `0.876619` on test versus `0.866804` without TTA. These values are useful for within-run TTA comparison but are not directly comparable with the macro results above. The evaluator now writes macro metrics as primary fields and explicit `micro_*` diagnostics.
+
+没有 v1.4 candidate 通过默认模型替换规则，因此默认推理模型保持不变。原始 v1.4 TTA 文件使用像素级 micro 指标，例如 512 fine-tune 在 test 上由无 TTA 的 micro-Dice `0.866804` 提升到 `0.876619`；这些值可用于本次运行内部的 TTA 对比，但不能与上表 macro 结果直接比较。评估器现已将 macro 指标设为主字段，并显式保留 `micro_*` 诊断字段。
+
 Debug run:
 
 调试运行：
@@ -718,9 +734,9 @@ The v1.4 runner stores each experiment under its own state directory. Completed 
 
 v1.4 runner 会把每个实验存入独立状态目录。已有 `completed.json` 的实验会跳过，失败项写入 `failed.json`，未完成训练会从 `checkpoints/last_model.pth` 继续。训练配置可设置 `training.max_runtime_minutes` 和 `training.safe_stop_minutes`；接近时限时会主动保存可续训 checkpoint 并正常退出。
 
-Expected v1.4 outputs:
+Completed v1.4 outputs:
 
-预期 v1.4 输出：
+已完成的 v1.4 输出：
 
 ```text
 research_v1_4_aggressive/comparison/aggressive_v1_4_summary.csv
@@ -852,7 +868,7 @@ This project is intended only for medical image segmentation experiments and eng
 ## Future Work / 后续改进
 
 - Extend subgroup analysis with body site and artifact metadata when available.
-- Run and report the aggressive v1.4 Kaggle workflow.
+- Re-evaluate v1.4 TTA and the B4 U-Net++/DeepLabV3+ ensemble with corrected macro metrics and batch size 1.
 - Compare additional encoders such as ResNet50 and ConvNeXt variants when GPU budget allows.
 - Add post-processing options for boundary smoothing or small false-positive removal.
 - Add GPU-oriented serving benchmarks for exported ONNX/TorchScript artifacts.

@@ -16,6 +16,9 @@
 - Added trainer time-budget safety stops, gradient accumulation, and fine-tune-friendly resume controls.
 - Added optional sample-weighted training for hard-example replay workflows.
 - Added TTA/post-processing evaluation utilities and v1.4 artifact packaging patterns.
+- Reported the completed v1.4 Kaggle run; all four candidates trained, but none satisfied the default-model replacement rule.
+- Corrected TTA and ensemble primary metrics to per-image macro aggregation while retaining explicit pixel-level `micro_*` diagnostics.
+- Made heavy TTA and ensemble evaluation use a configurable small batch, capture failure logs, preserve partial results, and resume analysis without retraining completed models.
 
 ## v1.2.0 - 2026-06-25
 

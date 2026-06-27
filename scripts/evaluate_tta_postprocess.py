@@ -14,7 +14,14 @@ if str(ROOT) not in sys.path:
 from evaluate import resolve_split_paths  # noqa: E402
 from src.dataset import SkinLesionDataset, get_val_transforms  # noqa: E402
 from src.inference import build_model_from_config  # noqa: E402
-from src.metrics import boundary_f1_score  # noqa: E402
+from src.metrics import (  # noqa: E402
+    boundary_f1_score,
+    dice_score,
+    iou_score,
+    precision_score,
+    recall_score,
+    specificity_score,
+)
 from src.postprocessing import postprocess_binary_masks, predict_probabilities_tta  # noqa: E402
 from src.threshold_search import compute_threshold_metrics_from_counts  # noqa: E402
 from src.utils import (  # noqa: E402
@@ -71,7 +78,14 @@ def evaluate_tta_postprocess(
 ):
     model.eval()
     counts = {"tp": 0.0, "fp": 0.0, "fn": 0.0, "tn": 0.0, "pixels": 0, "samples": 0}
-    boundary_total = 0.0
+    metric_totals = {
+        "dice": 0.0,
+        "iou": 0.0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "specificity": 0.0,
+        "boundary_f1": 0.0,
+    }
     sample_total = 0
     for images, masks in loader:
         images = images.to(device)
@@ -91,13 +105,23 @@ def evaluate_tta_postprocess(
             boundary_logits = _logits_from_probabilities(probabilities)
         _update_counts(preds.detach().cpu(), masks.detach().cpu(), counts)
         batch_size = int(images.shape[0])
-        boundary_total += float(boundary_f1_score(boundary_logits, masks, threshold=threshold).item()) * batch_size
+        batch_metrics = {
+            "dice": dice_score(boundary_logits, masks, threshold=threshold).item(),
+            "iou": iou_score(boundary_logits, masks, threshold=threshold).item(),
+            "precision": precision_score(boundary_logits, masks, threshold=threshold).item(),
+            "recall": recall_score(boundary_logits, masks, threshold=threshold).item(),
+            "specificity": specificity_score(boundary_logits, masks, threshold=threshold).item(),
+            "boundary_f1": boundary_f1_score(boundary_logits, masks, threshold=threshold).item(),
+        }
+        for key, value in batch_metrics.items():
+            metric_totals[key] += float(value) * batch_size
         sample_total += batch_size
 
-    metrics = compute_threshold_metrics_from_counts(counts["tp"], counts["fp"], counts["fn"], counts["tn"])
+    metrics = {key: value / max(sample_total, 1) for key, value in metric_totals.items()}
+    micro_metrics = compute_threshold_metrics_from_counts(counts["tp"], counts["fp"], counts["fn"], counts["tn"])
+    metrics.update({f"micro_{key}": value for key, value in micro_metrics.items()})
     metrics.update(
         {
-            "boundary_f1": boundary_total / max(sample_total, 1),
             "samples": counts["samples"],
             "pixels": counts["pixels"],
             "tp": int(counts["tp"]),
@@ -131,11 +155,15 @@ def write_outputs(metrics, output_dir, settings):
         f"- Vertical flip: `{settings['vertical_flip']}`",
         f"- Min component area: `{settings['min_component_area']}`",
         f"- Fill holes: `{settings['fill_holes']}`",
+        f"- Batch size: `{settings['batch_size']}`",
+        "- Primary aggregation: `macro_per_image`",
         "",
         "| Metric | Value |",
         "| --- | ---: |",
     ]
     for key in ["dice", "iou", "precision", "recall", "specificity", "boundary_f1"]:
+        lines.append(f"| {key} | {metrics[key]:.6f} |")
+    for key in ["micro_dice", "micro_iou", "micro_precision", "micro_recall", "micro_specificity"]:
         lines.append(f"| {key} | {metrics[key]:.6f} |")
     md_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return {"csv": csv_path, "json": json_path, "markdown": md_path}
@@ -154,18 +182,22 @@ def main():
     parser.add_argument("--fill-holes", action="store_true")
     parser.add_argument("--output-dir", default="outputs/tta_postprocess")
     parser.add_argument("--device", default=None)
+    parser.add_argument("--batch-size", type=int, default=None)
     args = parser.parse_args()
 
     if not 0.0 <= args.threshold <= 1.0:
         raise ValueError(f"threshold must be between 0 and 1, got {args.threshold}")
+    if args.batch_size is not None and args.batch_size <= 0:
+        raise ValueError(f"batch_size must be positive, got {args.batch_size}")
     scales = parse_scales(args.scales)
     config = load_config(args.config)
     images_path, masks_path = resolve_split_paths(config, args.split)
     device = get_device(args.device or config.get("device", "auto"))
     dataset = SkinLesionDataset(images_path, masks_path, transform=get_val_transforms(config))
+    batch_size = args.batch_size or int(config.get("training", {}).get("batch_size", 8))
     loader = DataLoader(
         dataset,
-        batch_size=int(config.get("training", {}).get("batch_size", 8)),
+        batch_size=batch_size,
         shuffle=False,
         num_workers=int(config.get("training", {}).get("num_workers", 2)),
         pin_memory=device.type == "cuda",
@@ -193,6 +225,8 @@ def main():
         "vertical_flip": bool(args.vertical_flip),
         "min_component_area": int(args.min_component_area),
         "fill_holes": bool(args.fill_holes),
+        "batch_size": int(batch_size),
+        "aggregation": "macro_per_image",
     }
     outputs = write_outputs(metrics, args.output_dir, settings)
     print(f"Saved TTA/post-processing metrics to {outputs['csv']}")

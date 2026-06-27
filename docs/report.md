@@ -465,21 +465,44 @@ The downloaded prediction samples did not show all-black or all-white masks. Sam
 
 下载的预测样例未出现全黑或全白 mask。预测 mask 的样例前景比例约为 `2.0%` 到 `3.9%`，与检查样例中的非空病灶预测一致。
 
-### 9.8 Runtime and Deployment Characteristics / 运行时与部署特性
+### 9.8 Aggressive Workflow v1.4 / v1.4 激进提分流程
+
+The completed v1.4 Kaggle run used commit `e893e5a2a73c4c3c248abacdc39171375f38f59a` and trained all four planned higher-capacity candidates. The directly comparable per-image macro results are:
+
+已完成的 v1.4 Kaggle 运行使用 commit `e893e5a2a73c4c3c248abacdc39171375f38f59a`，并完成四个高容量 candidate 的训练。可直接比较的逐图 macro 结果如下：
+
+| Candidate | Test Dice | External Dice | Test Boundary F1 | External Boundary F1 |
+| --- | ---: | ---: | ---: | ---: |
+| v1.3 `contrast_aug_bce_dice` reference | 0.864766 | 0.924386 | 0.437615 | 0.593236 |
+| U-Net++ EfficientNet-B4 448 | 0.860389 | **0.925023** | 0.386077 | 0.506854 |
+| U-Net++ EfficientNet-B4 512 fine-tune | 0.862619 | 0.918162 | 0.359950 | 0.418853 |
+| DeepLabV3+ EfficientNet-B4 448 | 0.859388 | 0.913495 | 0.392166 | 0.432164 |
+| U-Net++ EfficientNet-B5 448 | **0.864376** | 0.919449 | **0.395422** | **0.506858** |
+
+Increasing capacity and resolution did not produce a consistent gain. EfficientNet-B4 at 448 improved external Dice by `+0.000637` but reduced test Dice by `-0.004377`; EfficientNet-B5 nearly matched the v1.3 test Dice (`-0.000390`) but reduced external Dice by `-0.004937`. Boundary F1 declined for every v1.4 candidate, so the default model remains unchanged.
+
+提高容量和分辨率没有带来一致提升。448 EfficientNet-B4 的 external Dice 提升 `+0.000637`，但 test Dice 下降 `-0.004377`；EfficientNet-B5 几乎追平 v1.3 test Dice（`-0.000390`），但 external Dice 下降 `-0.004937`。所有 v1.4 candidate 的 Boundary F1 均下降，因此默认模型保持不变。
+
+The original TTA files used pixel-level micro aggregation, unlike the per-image macro aggregation used by `evaluate.py`. The reported 512 fine-tune TTA test Dice of `0.876619` therefore cannot be compared directly with v1.3. Under the same micro aggregation, TTA improved that model from `0.866804` to `0.876619` (`+0.009815`). The evaluator now reports macro metrics as primary fields and retains micro diagnostics explicitly.
+
+原始 TTA 文件使用像素级 micro 聚合，与 `evaluate.py` 的逐图 macro 聚合不同，因此 512 fine-tune 的 TTA test Dice `0.876619` 不能直接与 v1.3 比较。同一 micro 口径下，TTA 将该模型从 `0.866804` 提升到 `0.876619`（`+0.009815`）。评估器现已将 macro 指标设为主字段，并显式保留 micro 诊断值。
+
+### 9.9 Runtime and Deployment Characteristics / 运行时与部署特性
 
 The best repeated checkpoint contains 13.62M trainable parameters. On Kaggle Tesla P100, FP32 forward latency is 23.867 ms per 384x384 image, corresponding to 41.898 images/s. CPU inference remains usable for single-image local demo scenarios at 497.374 ms per image, but batch processing should prefer CUDA.
 
 最佳重复实验 checkpoint 包含 13.62M 可训练参数。在 Kaggle Tesla P100 上，384x384 单图 FP32 前向延迟为 23.867 ms，对应 41.898 images/s。CPU 单图推理为 497.374 ms，足够用于本地单图 demo，但批量处理更适合使用 CUDA。
 
-### 9.9 Improvement Directions / 改进方向
+### 9.10 Improvement Directions / 改进方向
 
 - Learning rate: try `5e-5` for the high-accuracy model to reduce validation fluctuation.
 - Batch size: keep 8 when memory allows; use 4 if GPU memory is limited.
-- Image size: keep 384 as the current default; test 448 only if memory permits.
-- Encoder: compare EfficientNet-B4, ResNet50, and ConvNeXt variants.
+- Image size: keep 384 as the current default; v1.4 did not establish a consistent 448/512 advantage.
+- Encoder: prioritize architecture diversity or boundary-aware objectives over another isolated capacity increase.
 - Loss: evaluate Focal + Dice for small-lesion recall.
 - Augmentation: use the v1.3 low-contrast workflow to evaluate CLAHE, gamma, low-contrast simulation, and stronger brightness/contrast augmentation.
 - Epochs: keep early stopping; repeated runs stopped at 15-24 epochs, so 30 maximum epochs is usually enough unless a new encoder or dataset is introduced.
+- Evaluation: rerun TTA and ensemble analysis with macro metrics, batch size 1, and captured failure logs before making another replacement decision.
 
 ## 10. Deployment / 部署与本地运行
 
