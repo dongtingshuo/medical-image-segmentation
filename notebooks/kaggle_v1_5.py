@@ -69,8 +69,11 @@ def main():
     parser.add_argument("--working-root", default=os.environ.get("KAGGLE_WORKING_PATH"))
     parser.add_argument("--isic17-dataset", default=os.environ.get("V15_ISIC17_DATASET", "moon1570/isic-2017-train-val-test-images-and-masks"))
     parser.add_argument("--isic18-dataset", default=os.environ.get("V15_ISIC18_DATASET", "tntiphan/isic-2018-task-1"))
-    parser.add_argument("--isic16-dataset", default=os.environ.get("V15_ISIC16_DATASET"))
-    parser.add_argument("--ph2-dataset", default=os.environ.get("V15_PH2_DATASET"))
+    parser.add_argument(
+        "--isic16-dataset",
+        default=os.environ.get("V15_ISIC16_DATASET", "mahmudulhasantasin/isic-2016-original-dataset"),
+    )
+    parser.add_argument("--ph2-dataset", default=os.environ.get("V15_PH2_DATASET", "spacesurfer/ph2-dataset"))
     parser.add_argument("--isic16-images-rel", default=os.environ.get("V15_ISIC16_IMAGES_REL"))
     parser.add_argument("--isic16-masks-rel", default=os.environ.get("V15_ISIC16_MASKS_REL"))
     parser.add_argument("--ph2-images-rel", default=os.environ.get("V15_PH2_IMAGES_REL"))

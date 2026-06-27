@@ -52,6 +52,25 @@ def test_recursive_shared_root_discovers_nested_images_and_lesion_masks(tmp_path
     ]
 
 
+def test_recursive_shared_root_discovers_ph2_bmp_pairs(tmp_path):
+    root = tmp_path / "PH2Dataset"
+    image_dir = root / "PH2 Dataset images/IMD002/IMD002_Dermoscopic_Image"
+    mask_dir = root / "PH2 Dataset images/IMD002/IMD002_lesion"
+    image_dir.mkdir(parents=True)
+    mask_dir.mkdir(parents=True)
+    image = np.full((20, 30, 3), 80, dtype=np.uint8)
+    mask = np.zeros((20, 30), dtype=np.uint8)
+    mask[4:-4, 5:-5] = 255
+    cv2.imwrite(str(image_dir / "IMD002.bmp"), image)
+    cv2.imwrite(str(mask_dir / "IMD002_lesion.bmp"), mask)
+
+    pairs = discover_pairs(root, root)
+
+    assert [(stem, image.name, mask.name) for stem, image, mask in pairs] == [
+        ("IMD002", "IMD002.bmp", "IMD002_lesion.bmp")
+    ]
+
+
 def test_multisource_always_removes_primary_benchmark_overlap(tmp_path):
     primary = _write_pair(tmp_path / "primary", "p", 80)
     benchmark = _write_pair(tmp_path / "benchmark", "b", 80)

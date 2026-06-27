@@ -1,0 +1,18 @@
+{
+  "id": "dongtingshuo/medseg-v1-5",
+  "title": "medseg-v1-5",
+  "code_file": "run_v1_5.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": "true",
+  "enable_gpu": "true",
+  "enable_internet": "true",
+  "dataset_sources": [
+    "moon1570/isic-2017-train-val-test-images-and-masks",
+    "tntiphan/isic-2018-task-1",
+    "mahmudulhasantasin/isic-2016-original-dataset",
+    "spacesurfer/ph2-dataset"
+  ],
+  "competition_sources": [],
+  "kernel_sources": []
+}

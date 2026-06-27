@@ -9,7 +9,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
+IMAGE_EXTENSIONS = {".bmp", ".jpg", ".jpeg", ".png"}
 MASK_SUFFIXES = ("_segmentation", "_lesion", "_mask", "_label", "_groundtruth", "_ground_truth")
 MASK_PARENT_MARKERS = ("mask", "groundtruth", "ground_truth", "segmentation")
 
