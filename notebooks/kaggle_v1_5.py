@@ -60,6 +60,26 @@ def load_wandb_secrets():
         print(f"WANDB_API_KEY is unavailable; runs will be stored offline: {exc}", flush=True)
 
 
+def resolve_runtime_roots(input_root=None, working_root=None):
+    cwd = Path.cwd().resolve()
+    if working_root:
+        resolved_working = Path(working_root).resolve()
+    else:
+        resolved_working = next(
+            (path for path in (cwd, *cwd.parents) if path.name == "working" and path.parent.name == "kaggle"),
+            cwd,
+        )
+
+    if input_root:
+        resolved_input = Path(input_root).resolve()
+    else:
+        resolved_input = next(
+            (path / "input" for path in (cwd, *cwd.parents) if (path / "input").is_dir()),
+            resolved_working.parent / "input",
+        )
+    return resolved_input, resolved_working
+
+
 def main():
     parser = argparse.ArgumentParser(description="Kaggle entrypoint for resumable v1.5 training.")
     parser.add_argument("--debug", action="store_true")
@@ -81,8 +101,7 @@ def main():
     parser.add_argument("--state-input")
     args = parser.parse_args()
 
-    working_root = Path(args.working_root) if args.working_root else Path.cwd()
-    input_root = Path(args.input_root) if args.input_root else working_root.parent / "input"
+    input_root, working_root = resolve_runtime_roots(args.input_root, args.working_root)
     repository_root = working_root / "medical-image-segmentation"
     if args.use_existing_repo and repository_root.exists():
         print(f"Using existing repository: {repository_root}", flush=True)
