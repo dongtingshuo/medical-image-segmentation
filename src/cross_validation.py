@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import random
 import shutil
 from pathlib import Path
@@ -55,6 +56,29 @@ def create_kfold_splits(stems, k=3, seed=42):
     return folds
 
 
+def create_stratified_kfold_splits(records, k=5, seed=42, stem_key="stem", stratum_key="stratum"):
+    grouped = {}
+    for record in records:
+        stem = str(record[stem_key])
+        grouped.setdefault(str(record[stratum_key]), []).append(stem)
+    rng = random.Random(int(seed))
+    validation_ids = [[] for _ in range(int(k))]
+    for group in sorted(grouped):
+        items = sorted(grouped[group])
+        rng.shuffle(items)
+        offset = rng.randrange(int(k)) if len(items) > 1 else 0
+        for index, stem in enumerate(items):
+            validation_ids[(index + offset) % int(k)].append(stem)
+    stems = sorted(str(record[stem_key]) for record in records)
+    all_stems = set(stems)
+    folds = []
+    for fold_index, val_ids in enumerate(validation_ids):
+        val_ids = sorted(val_ids)
+        folds.append({"fold": fold_index, "train_ids": sorted(all_stems - set(val_ids)), "val_ids": val_ids})
+    validate_folds(folds, stems)
+    return folds
+
+
 def validate_folds(folds, stems):
     expected = set(stems)
     validation_seen = []
@@ -86,7 +110,23 @@ def read_folds(path):
     return payload["folds"]
 
 
-def materialize_fold_directories(images_dir, masks_dir, folds, output_root):
+def _materialize_file(source, destination, mode):
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    if destination.exists():
+        return
+    if mode == "hardlink":
+        try:
+            os.link(source, destination)
+            return
+        except OSError:
+            pass
+    if mode == "symlink":
+        destination.symlink_to(Path(source).resolve())
+    else:
+        shutil.copy2(source, destination)
+
+
+def materialize_fold_directories(images_dir, masks_dir, folds, output_root, mode="copy"):
     images_dir = Path(images_dir)
     masks_dir = Path(masks_dir)
     output_root = Path(output_root)
@@ -102,6 +142,6 @@ def materialize_fold_directories(images_dir, masks_dir, folds, output_root):
             for stem in ids:
                 image_src = stem_to_image[stem]
                 mask_src = stem_to_mask[stem]
-                shutil.copy2(image_src, image_out / image_src.name)
-                shutil.copy2(mask_src, mask_out / mask_src.name)
+                _materialize_file(image_src, image_out / image_src.name, mode)
+                _materialize_file(mask_src, mask_out / mask_src.name, mode)
     return output_root

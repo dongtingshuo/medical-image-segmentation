@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+import torch
 
 
 def test_dataset_strict_matching_rejects_missing_mask(tmp_path):
@@ -73,3 +74,36 @@ def test_low_contrast_train_transform_preserves_shapes_and_binary_mask():
     assert transformed["image"].shape == (64, 64, 3)
     assert transformed["mask"].shape == (64, 64)
     assert set(np.unique(transformed["mask"]).tolist()).issubset({0.0, 1.0})
+
+
+def test_dataset_keeps_soft_mask_geometry_synchronized(tmp_path):
+    cv2 = pytest.importorskip("cv2")
+    pytest.importorskip("albumentations")
+    from src.dataset import SkinLesionDataset, get_train_transforms
+
+    images_dir, masks_dir, soft_dir = tmp_path / "images", tmp_path / "masks", tmp_path / "soft"
+    images_dir.mkdir()
+    masks_dir.mkdir()
+    soft_dir.mkdir()
+    image = np.zeros((20, 30, 3), dtype=np.uint8)
+    mask = np.zeros((20, 30), dtype=np.uint8)
+    mask[5:15, 8:22] = 255
+    soft = np.rint((mask / 255.0) * 65535).astype(np.uint16)
+    cv2.imwrite(str(images_dir / "a.jpg"), image)
+    cv2.imwrite(str(masks_dir / "a.png"), mask)
+    cv2.imwrite(str(soft_dir / "a.png"), soft)
+    config = {
+        "seed": 1,
+        "data": {"image_size": 32, "resize_mode": "letterbox", "soft_masks_dir": str(soft_dir)},
+        "augmentation": {"enabled": False},
+    }
+    dataset = SkinLesionDataset(
+        images_dir,
+        masks_dir,
+        soft_masks_dir=soft_dir,
+        transform=get_train_transforms(config),
+    )
+    image_tensor, mask_tensor, soft_tensor = dataset[0]
+    assert image_tensor.shape == (3, 32, 32)
+    assert mask_tensor.shape == soft_tensor.shape == (1, 32, 32)
+    assert torch.allclose(mask_tensor, soft_tensor, atol=1e-3)

@@ -2,7 +2,9 @@
 target-version = "py310"
 line-length = 120
 exclude = [
+  "*.ipynb",
   "kaggle_outputs",
+  "kaggle_*_kernel",
   "kaggle_debug_kernel",
   "kaggle_baseline_unet_kernel",
   "kaggle_high_accuracy_kernel",
@@ -15,6 +17,7 @@ ignore = ["E501", "B905"]
 
 [tool.ruff.lint.per-file-ignores]
 "notebooks/*" = ["E402"]
+"scripts/*" = ["E402"]
 
 [tool.pyright]
 pythonVersion = "3.10"

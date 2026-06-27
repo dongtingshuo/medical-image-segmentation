@@ -8,9 +8,14 @@ import numpy as np
 import torch
 
 from src.model_factory import get_model
-from src.utils import canonical_model_name, checkpoint_model_config, get_device, load_checkpoint, load_checkpoint_payload
+from src.utils import (
+    canonical_model_name,
+    checkpoint_model_config,
+    get_device,
+    load_checkpoint,
+    load_checkpoint_payload,
+)
 from src.visualization import make_overlay, save_prediction_result
-
 
 IMAGENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
 IMAGENET_STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)

@@ -17,21 +17,22 @@ def main():
     parser = argparse.ArgumentParser(description="Prepare paired ISIC train/val/test and external evaluation data.")
     parser.add_argument("--internal-root", required=True)
     parser.add_argument("--external-root", required=True)
-    parser.add_argument("--output-root", default="/kaggle/working/prepared_data")
+    parser.add_argument("--output-root", default="outputs/prepared_data")
     parser.add_argument("--image-size", type=int, default=384)
+    parser.add_argument("--preserve-geometry", action="store_true")
     args = parser.parse_args()
 
     output_root = Path(args.output_root)
     internal_report = prepare_internal_splits(
         args.internal_root,
         output_root / "internal",
-        image_size=args.image_size,
+        image_size=None if args.preserve_geometry else args.image_size,
     )
     external_report = prepare_external_split(
         args.external_root,
         output_root / "external",
         excluded_ids=collect_sample_ids(args.internal_root),
-        image_size=args.image_size,
+        image_size=None if args.preserve_geometry else args.image_size,
     )
     print("Internal prepared splits:", internal_report["prepared_splits"])
     print(

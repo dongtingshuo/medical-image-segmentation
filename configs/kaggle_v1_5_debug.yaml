@@ -1,0 +1,63 @@
+experiment_name: kaggle_v1_5_debug
+seed: 42
+reproducibility:
+  deterministic: true
+device: auto
+require_gpu: false
+mixed_precision: true
+
+data:
+  image_size: 128
+  resize_mode: letterbox
+  source_sampling:
+    proportions:
+      isic17: 0.65
+      isic16: 0.25
+      ph2: 0.10
+
+model:
+  model_name: unet
+  in_channels: 3
+  out_channels: 1
+  base_channels: 8
+
+training:
+  batch_size: 2
+  gradient_accumulation_steps: 1
+  epochs: 2
+  lr: 1.0e-3
+  weight_decay: 1.0e-4
+  optimizer: adamw
+  scheduler: warmup_cosine
+  warmup_epochs: 1
+  gradient_clip_norm: 1.0
+  num_workers: 0
+  max_train_batches: 2
+  max_val_batches: 2
+  max_runtime_minutes: 20
+  safe_stop_minutes: 2
+  ema:
+    enabled: true
+    decay: 0.99
+  early_stopping:
+    enabled: false
+    patience: 2
+    monitor: val_composite
+    mode: max
+
+loss:
+  name: hybrid_boundary
+
+augmentation:
+  enabled: true
+  strategy: controlled
+  horizontal_flip: true
+  vertical_flip: true
+
+tracking:
+  enabled: false
+  project: medseg-v1-5
+
+paths:
+  output_dir: outputs/v1_5_debug
+  checkpoint_dir: checkpoints/v1_5_debug

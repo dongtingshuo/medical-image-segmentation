@@ -1,7 +1,6 @@
 import csv
 from pathlib import Path
 
-
 EXPERIMENT_FIELDS = [
     "experiment_name",
     "model_name",

@@ -2,7 +2,6 @@ import argparse
 import subprocess
 import sys
 
-
 P100_TORCH_INDEX = "https://download.pytorch.org/whl/cu121"
 P100_TORCH_PACKAGES = [
     "torch==2.5.1",

@@ -1,0 +1,77 @@
+# v1.5 runtime base. The pipeline writes all real data/output paths into per-run configs.
+experiment_name: kaggle_v1_5
+seed: 42
+reproducibility:
+  # Explicit throughput exception for the 30-hour Kaggle workflow.
+  deterministic: false
+device: auto
+require_gpu: true
+mixed_precision: true
+
+data:
+  image_size: 384
+  resize_mode: letterbox
+  source_sampling:
+    proportions:
+      isic17: 0.65
+      isic16: 0.25
+      ph2: 0.10
+
+model:
+  model_name: unet_plus_plus
+  in_channels: 3
+  out_channels: 1
+  encoder_name: efficientnet-b3
+  encoder_weights: imagenet
+
+training:
+  batch_size: 6
+  gradient_accumulation_steps: 2
+  epochs: 35
+  lr: 1.0e-4
+  encoder_lr: 2.0e-5
+  decoder_lr: 1.0e-4
+  weight_decay: 1.0e-4
+  optimizer: adamw
+  scheduler: warmup_cosine
+  warmup_epochs: 2
+  gradient_clip_norm: 1.0
+  num_workers: 2
+  max_runtime_minutes: 570
+  safe_stop_minutes: 30
+  resume_optimizer: true
+  resume_training_state: true
+  ema:
+    enabled: true
+    decay: 0.999
+  early_stopping:
+    enabled: true
+    patience: 7
+    monitor: val_composite
+    mode: max
+
+loss:
+  name: hybrid_boundary
+  bce_weight: 0.20
+  dice_weight: 0.40
+  lovasz_weight: 0.25
+  boundary_weight: 0.15
+
+augmentation:
+  enabled: true
+  strategy: controlled
+  horizontal_flip: true
+  vertical_flip: true
+  geometry_p: 0.55
+  photometric_p: 0.65
+  artifact_p: 0.20
+
+tracking:
+  enabled: true
+  mode: online
+  project: medseg-v1-5
+  upload_best_checkpoint: true
+
+paths:
+  output_dir: outputs/v1_5_runtime
+  checkpoint_dir: checkpoints/v1_5_runtime

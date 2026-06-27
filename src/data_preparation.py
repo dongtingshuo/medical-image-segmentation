@@ -83,8 +83,9 @@ def _write_pair(image_path, mask_path, output_images, output_masks, sample_id, i
         raise ValueError(f"Failed to read image: {image_path}")
     if mask is None:
         raise ValueError(f"Failed to read mask: {mask_path}")
-    image = cv2.resize(image, (image_size, image_size), interpolation=cv2.INTER_AREA)
-    mask = cv2.resize(mask, (image_size, image_size), interpolation=cv2.INTER_NEAREST)
+    if image_size is not None:
+        image = cv2.resize(image, (int(image_size), int(image_size)), interpolation=cv2.INTER_AREA)
+        mask = cv2.resize(mask, (int(image_size), int(image_size)), interpolation=cv2.INTER_NEAREST)
     mask = (mask > 127).astype(np.uint8) * 255
     output_images.mkdir(parents=True, exist_ok=True)
     output_masks.mkdir(parents=True, exist_ok=True)
@@ -111,14 +112,15 @@ def prepare_internal_splits(source_root, output_root, image_size=384):
                 output_root / split / "images",
                 output_root / split / "masks",
                 sample_id,
-                int(image_size),
+                None if image_size is None else int(image_size),
             )
     report.update(
         {
             "kind": "internal",
             "prepared_root": str(output_root),
             "prepared_splits": {split: len(pairs[split]) for split in required},
-            "image_size": int(image_size),
+            "image_size": None if image_size is None else int(image_size),
+            "preserved_geometry": image_size is None,
         }
     )
     output_root.mkdir(parents=True, exist_ok=True)
@@ -157,7 +159,7 @@ def prepare_external_split(
             output_root / "images",
             output_root / "masks",
             sample_id,
-            int(image_size),
+            None if image_size is None else int(image_size),
         )
     report.update(
         {
@@ -168,7 +170,8 @@ def prepare_external_split(
             "excluded_overlap_count": len(overlap_ids),
             "excluded_overlap_ids": overlap_ids,
             "prepared_pairs": len(selected_pairs),
-            "image_size": int(image_size),
+            "image_size": None if image_size is None else int(image_size),
+            "preserved_geometry": image_size is None,
         }
     )
     output_root.mkdir(parents=True, exist_ok=True)

@@ -7,7 +7,6 @@ from scripts.run_error_analysis import run_error_analysis
 from scripts.run_segmentation_comparison import run_comparison
 from scripts.run_visualization_demo import run_visualization_demo
 
-
 REQUIRED_KEYWORDS = [
     "Medical Disclaimer",
     "医学免责声明",

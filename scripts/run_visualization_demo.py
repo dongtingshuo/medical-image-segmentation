@@ -12,7 +12,6 @@ if str(ROOT) not in sys.path:
 from scripts.create_toy_segmentation_data import create_toy_segmentation_data
 from src.visualization import save_visualization_set
 
-
 DISCLAIMER_ZH = "本项目仅用于医学图像分割算法实验和工程流程验证，不用于临床诊断、治疗建议或真实医疗决策。"
 DISCLAIMER_EN = (
     "This project is intended only for medical image segmentation experiments and engineering workflow "

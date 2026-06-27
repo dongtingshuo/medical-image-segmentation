@@ -30,18 +30,66 @@ def get_train_transforms(config):
     _require_albumentations()
     height, width = _as_size(config)
     aug_cfg = config.get("augmentation", {})
-    transforms = [A.Resize(height=height, width=width)]
+    resize_mode = str(config.get("data", {}).get("resize_mode", "stretch")).lower()
+    if resize_mode == "letterbox":
+        transforms = [
+            A.LongestMaxSize(max_size=max(height, width)),
+            A.PadIfNeeded(
+                min_height=height,
+                min_width=width,
+                border_mode=cv2.BORDER_CONSTANT,
+                value=0,
+                mask_value=0,
+            ),
+        ]
+    elif resize_mode == "stretch":
+        transforms = [A.Resize(height=height, width=width)]
+    else:
+        raise ValueError(f"Unsupported data.resize_mode: {resize_mode}")
     if aug_cfg.get("enabled", True):
         if aug_cfg.get("horizontal_flip", True):
             transforms.append(A.HorizontalFlip(p=0.5))
         if aug_cfg.get("vertical_flip", False):
             transforms.append(A.VerticalFlip(p=0.5))
-        if aug_cfg.get("rotate", True):
-            transforms.append(A.ShiftScaleRotate(shift_limit=0.05, scale_limit=0.1, rotate_limit=20, p=0.5))
-        if aug_cfg.get("color_jitter", True):
-            transforms.append(A.RandomBrightnessContrast(p=0.3))
+        controlled = str(aug_cfg.get("strategy", "legacy")).lower() == "controlled"
+        if controlled:
+            transforms.append(
+                A.OneOf(
+                    [
+                        A.ShiftScaleRotate(shift_limit=0.05, scale_limit=0.10, rotate_limit=25, p=1.0),
+                        A.GridDistortion(num_steps=5, distort_limit=0.15, p=1.0),
+                    ],
+                    p=float(aug_cfg.get("geometry_p", 0.55)),
+                )
+            )
+            transforms.append(
+                A.OneOf(
+                    [
+                        A.CLAHE(clip_limit=(1.0, 3.0), tile_grid_size=(8, 8), p=1.0),
+                        A.RandomGamma(gamma_limit=(75, 125), p=1.0),
+                        A.RandomBrightnessContrast(brightness_limit=0.15, contrast_limit=0.25, p=1.0),
+                        A.HueSaturationValue(hue_shift_limit=8, sat_shift_limit=12, val_shift_limit=10, p=1.0),
+                    ],
+                    p=float(aug_cfg.get("photometric_p", 0.65)),
+                )
+            )
+            transforms.append(
+                A.OneOf(
+                    [
+                        A.GaussNoise(var_limit=(5.0, 25.0), p=1.0),
+                        A.GaussianBlur(blur_limit=(3, 5), p=1.0),
+                        A.CoarseDropout(max_holes=8, max_height=24, max_width=24, min_holes=1, p=1.0),
+                    ],
+                    p=float(aug_cfg.get("artifact_p", 0.20)),
+                )
+            )
+        else:
+            if aug_cfg.get("rotate", True):
+                transforms.append(A.ShiftScaleRotate(shift_limit=0.05, scale_limit=0.1, rotate_limit=20, p=0.5))
+            if aug_cfg.get("color_jitter", True):
+                transforms.append(A.RandomBrightnessContrast(p=0.3))
         low_contrast_cfg = aug_cfg.get("low_contrast", {})
-        if low_contrast_cfg.get("enabled", False):
+        if low_contrast_cfg.get("enabled", False) and not controlled:
             if low_contrast_cfg.get("clahe", True):
                 transforms.append(
                     A.CLAHE(
@@ -74,7 +122,8 @@ def get_train_transforms(config):
                     )
                 )
     transforms.append(A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)))
-    compose = A.Compose(transforms)
+    additional_targets = {"soft_mask": "mask"} if config.get("data", {}).get("soft_masks_dir") else {}
+    compose = A.Compose(transforms, additional_targets=additional_targets)
     if hasattr(compose, "set_random_seed"):
         compose.set_random_seed(int(config.get("seed", 42)))
     return compose
@@ -83,12 +132,24 @@ def get_train_transforms(config):
 def get_val_transforms(config):
     _require_albumentations()
     height, width = _as_size(config)
-    compose = A.Compose(
-        [
-            A.Resize(height=height, width=width),
-            A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+    resize_mode = str(config.get("data", {}).get("resize_mode", "stretch")).lower()
+    if resize_mode == "letterbox":
+        transforms = [
+            A.LongestMaxSize(max_size=max(height, width)),
+            A.PadIfNeeded(
+                min_height=height,
+                min_width=width,
+                border_mode=cv2.BORDER_CONSTANT,
+                value=0,
+                mask_value=0,
+            ),
         ]
-    )
+    elif resize_mode == "stretch":
+        transforms = [A.Resize(height=height, width=width)]
+    else:
+        raise ValueError(f"Unsupported data.resize_mode: {resize_mode}")
+    transforms.append(A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)))
+    compose = A.Compose(transforms)
     if hasattr(compose, "set_random_seed"):
         compose.set_random_seed(int(config.get("seed", 42)) + 1)
     return compose
@@ -97,11 +158,12 @@ def get_val_transforms(config):
 class SkinLesionDataset(Dataset):
     """Skin lesion image/mask dataset with strict filename-stem matching."""
 
-    def __init__(self, images_dir, masks_dir, transform=None, strict=True):
+    def __init__(self, images_dir, masks_dir, transform=None, strict=True, soft_masks_dir=None):
         self.images_dir = Path(images_dir)
         self.masks_dir = Path(masks_dir)
         self.transform = transform
         self.strict = strict
+        self.soft_masks_dir = Path(soft_masks_dir) if soft_masks_dir else None
 
         if not self.images_dir.exists():
             raise FileNotFoundError(f"Images directory does not exist: {self.images_dir}")
@@ -151,6 +213,18 @@ class SkinLesionDataset(Dataset):
                 "Files must share the same filename stem."
             )
         self.pairs = pairs
+        self.soft_mask_map = {}
+        if self.soft_masks_dir is not None:
+            if not self.soft_masks_dir.exists():
+                raise FileNotFoundError(f"Soft-mask directory does not exist: {self.soft_masks_dir}")
+            self.soft_mask_map = {
+                path.stem: path
+                for path in self.soft_masks_dir.iterdir()
+                if path.is_file() and path.suffix.lower() in IMAGE_EXTENSIONS
+            }
+            missing_soft = [image_path.stem for image_path, _ in pairs if image_path.stem not in self.soft_mask_map]
+            if missing_soft:
+                raise ValueError(f"Missing distillation soft masks for: {missing_soft[:10]}")
 
     def __len__(self):
         return len(self.pairs)
@@ -172,13 +246,30 @@ class SkinLesionDataset(Dataset):
             )
         mask = (mask > 127).astype(np.float32)
 
+        soft_mask = None
+        if self.soft_masks_dir is not None:
+            soft_path = self.soft_mask_map[image_path.stem]
+            soft_mask = cv2.imread(str(soft_path), cv2.IMREAD_UNCHANGED)
+            if soft_mask is None:
+                raise ValueError(f"Failed to read soft mask: {soft_path}")
+            soft_mask = soft_mask.astype(np.float32) / float(np.iinfo(soft_mask.dtype).max)
+            if soft_mask.shape[:2] != mask.shape[:2]:
+                raise ValueError(f"Soft mask size mismatch for `{image_path.stem}`")
+
         if self.transform is not None:
-            augmented = self.transform(image=image, mask=mask)
+            inputs = {"image": image, "mask": mask}
+            if soft_mask is not None:
+                inputs["soft_mask"] = soft_mask
+            augmented = self.transform(**inputs)
             image = augmented["image"]
             mask = augmented["mask"]
+            soft_mask = augmented.get("soft_mask", soft_mask)
         else:
             image = image.astype(np.float32) / 255.0
 
         image = torch.from_numpy(np.transpose(image, (2, 0, 1))).float()
         mask = torch.from_numpy(mask).float().unsqueeze(0)
-        return image, mask
+        if soft_mask is None:
+            return image, mask
+        soft_mask = torch.from_numpy(np.asarray(soft_mask)).float().unsqueeze(0)
+        return image, mask, soft_mask

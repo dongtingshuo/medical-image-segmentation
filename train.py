@@ -30,49 +30,114 @@ def _require_dir(path, label):
 def build_optimizer(model, config):
     training = config.get("training", {})
     lr = float(training.get("lr", 1e-4))
+    encoder_lr = training.get("encoder_lr")
+    decoder_lr = training.get("decoder_lr")
+    weight_decay = float(training.get("weight_decay", 1e-2))
     name = str(training.get("optimizer", "adam")).lower()
+    parameters = model.parameters()
+    if encoder_lr is not None or decoder_lr is not None:
+        encoder = getattr(model, "encoder", None)
+        if encoder is None:
+            raise ValueError("Differential learning rates require the model to expose an `encoder` module.")
+        encoder_ids = {id(parameter) for parameter in encoder.parameters()}
+        encoder_parameters = [parameter for parameter in model.parameters() if id(parameter) in encoder_ids]
+        decoder_parameters = [parameter for parameter in model.parameters() if id(parameter) not in encoder_ids]
+        parameters = [
+            {"params": encoder_parameters, "lr": float(encoder_lr or lr), "name": "encoder"},
+            {"params": decoder_parameters, "lr": float(decoder_lr or lr), "name": "decoder"},
+        ]
     if name == "adam":
-        return torch.optim.Adam(model.parameters(), lr=lr)
+        return torch.optim.Adam(parameters, lr=lr, weight_decay=weight_decay)
     if name == "adamw":
-        return torch.optim.AdamW(model.parameters(), lr=lr)
+        return torch.optim.AdamW(parameters, lr=lr, weight_decay=weight_decay)
     raise ValueError(f"Unsupported optimizer: {name}")
 
 
 def build_scheduler(optimizer, config):
     training = config.get("training", {})
     name = str(training.get("scheduler", "none")).lower()
-    epochs = int(training.get("epochs", 1))
+    epochs = int(training.get("scheduler_epochs", training.get("epochs", 1)))
     if name in {"none", "null"}:
         return None
     if name == "reduce_on_plateau":
         return torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="min", patience=3, factor=0.5)
     if name == "cosine":
         return torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=max(epochs, 1))
+    if name == "warmup_cosine":
+        warmup_epochs = max(1, int(training.get("warmup_epochs", 2)))
+        warmup_epochs = min(warmup_epochs, max(epochs - 1, 1))
+        warmup = torch.optim.lr_scheduler.LinearLR(
+            optimizer,
+            start_factor=float(training.get("warmup_start_factor", 0.1)),
+            total_iters=warmup_epochs,
+        )
+        cosine = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=max(epochs - warmup_epochs, 1))
+        return torch.optim.lr_scheduler.SequentialLR(
+            optimizer,
+            schedulers=[warmup, cosine],
+            milestones=[warmup_epochs],
+        )
     raise ValueError(f"Unsupported scheduler: {name}")
 
 
 def build_weighted_sampler(dataset, config):
     data_cfg = config.get("data", {})
     weights_path = data_cfg.get("sample_weights_csv")
-    if not weights_path:
+    source_sampling = data_cfg.get("source_sampling", {})
+    source_manifest = source_sampling.get("manifest")
+    target_proportions = source_sampling.get("proportions", {})
+    if not weights_path and not (source_manifest and target_proportions):
         return None
-    weights_path = Path(weights_path)
-    if not weights_path.exists():
-        raise FileNotFoundError(f"sample_weights_csv does not exist: {weights_path}")
-    stem_column = data_cfg.get("sample_weight_stem_column", "stem")
-    weight_column = data_cfg.get("sample_weight_column", "weight")
     weights_by_stem = {}
-    with weights_path.open("r", newline="", encoding="utf-8") as handle:
-        reader = csv.DictReader(handle)
-        if stem_column not in (reader.fieldnames or []) or weight_column not in (reader.fieldnames or []):
-            raise ValueError(
-                f"sample_weights_csv must contain `{stem_column}` and `{weight_column}` columns: {weights_path}"
+    if weights_path:
+        weights_path = Path(weights_path)
+        if not weights_path.exists():
+            raise FileNotFoundError(f"sample_weights_csv does not exist: {weights_path}")
+        stem_column = data_cfg.get("sample_weight_stem_column", "stem")
+        weight_column = data_cfg.get("sample_weight_column", "weight")
+        with weights_path.open("r", newline="", encoding="utf-8") as handle:
+            reader = csv.DictReader(handle)
+            if stem_column not in (reader.fieldnames or []) or weight_column not in (reader.fieldnames or []):
+                raise ValueError(
+                    f"sample_weights_csv must contain `{stem_column}` and `{weight_column}` columns: {weights_path}"
+                )
+            for row in reader:
+                weights_by_stem[str(row[stem_column])] = float(row[weight_column])
+
+    source_factor_by_stem = {}
+    if source_manifest and target_proportions:
+        source_manifest = Path(source_manifest)
+        if not source_manifest.exists():
+            raise FileNotFoundError(f"Source manifest does not exist: {source_manifest}")
+        source_by_stem = {}
+        with source_manifest.open("r", newline="", encoding="utf-8") as handle:
+            for row in csv.DictReader(handle):
+                if row.get("status", "accepted") != "accepted" or not row.get("stem"):
+                    continue
+                source_by_stem[row["stem"]] = row["source"]
+        total_proportion = sum(float(value) for value in target_proportions.values())
+        if total_proportion <= 0:
+            raise ValueError("Source sampling proportions must have a positive sum.")
+        dataset_stems = {image_path.stem for image_path, _ in dataset.pairs}
+        missing_manifest = sorted(dataset_stems - set(source_by_stem))
+        if missing_manifest:
+            raise ValueError(f"Samples are missing from the accepted source manifest: {missing_manifest[:10]}")
+        source_hard_totals = {}
+        for stem in dataset_stems:
+            source = source_by_stem[stem]
+            if source not in target_proportions:
+                raise ValueError(f"Missing source sampling proportion for `{source}`.")
+            source_hard_totals[source] = source_hard_totals.get(source, 0.0) + float(weights_by_stem.get(stem, 1.0))
+        for stem in dataset_stems:
+            source = source_by_stem[stem]
+            source_factor_by_stem[stem] = (
+                float(target_proportions[source]) / total_proportion / max(source_hard_totals[source], 1e-12)
             )
-        for row in reader:
-            weights_by_stem[str(row[stem_column])] = float(row[weight_column])
     weights = []
     for image_path, _ in dataset.pairs:
-        weight = float(weights_by_stem.get(image_path.stem, 1.0))
+        weight = float(weights_by_stem.get(image_path.stem, 1.0)) * float(
+            source_factor_by_stem.get(image_path.stem, 1.0)
+        )
         if weight <= 0:
             raise ValueError(f"Sample weight must be positive for `{image_path.stem}`, got {weight}")
         weights.append(weight)
@@ -103,7 +168,13 @@ def main():
     val_images = _require_dir(data_path(config, "val_images_dir"), "val_images_dir")
     val_masks = _require_dir(data_path(config, "val_masks_dir"), "val_masks_dir")
 
-    train_dataset = SkinLesionDataset(train_images, train_masks, transform=get_train_transforms(config))
+    soft_masks_dir = data_path(config, "soft_masks_dir")
+    train_dataset = SkinLesionDataset(
+        train_images,
+        train_masks,
+        transform=get_train_transforms(config),
+        soft_masks_dir=soft_masks_dir,
+    )
     val_dataset = SkinLesionDataset(val_images, val_masks, transform=get_val_transforms(config))
 
     training = config.get("training", {})

@@ -8,7 +8,6 @@ import numpy as np
 import torch
 import yaml
 
-
 CHECKPOINT_FORMAT_VERSION = 2
 MODEL_NAME_ALIASES = {"unetplusplus": "unet_plus_plus"}
 

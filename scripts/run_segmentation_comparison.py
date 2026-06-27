@@ -5,9 +5,9 @@ import sys
 from copy import deepcopy
 from pathlib import Path
 
-import torch
 import cv2
 import numpy as np
+import torch
 from torch.utils.data import DataLoader, Dataset
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -19,7 +19,6 @@ from src.losses import build_loss
 from src.metrics import dice_score, iou_score, precision_score, recall_score
 from src.model_factory import get_model
 from src.utils import load_config, make_torch_generator, set_seed
-
 
 DISCLAIMER_ZH = "本项目仅用于医学图像分割算法实验和工程流程验证，不用于临床诊断、治疗建议或真实医疗决策。"
 DISCLAIMER_EN = (
@@ -143,7 +142,7 @@ def _write_report(rows, output_path, config):
         )
     table = "\n".join(table_rows)
     model_names = ", ".join([m.get("name", m.get("model_name", "unknown")) for m in config.get("models", [])])
-    loss_names = ", ".join([l.get("name", "unknown") for l in config.get("losses", [])])
+    loss_names = ", ".join([loss.get("name", "unknown") for loss in config.get("losses", [])])
     output_path.write_text(
         f"""# Experiment Objective / 实验目的
 

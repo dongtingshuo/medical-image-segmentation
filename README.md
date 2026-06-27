@@ -91,6 +91,7 @@ The main project documents describe training, evaluation, result interpretation,
 - [docs/releases/v1.2.0.md](docs/releases/v1.2.0.md)
 - [docs/releases/v1.3.0.md](docs/releases/v1.3.0.md)
 - [docs/releases/v1.4.0.md](docs/releases/v1.4.0.md)
+- [docs/v1_5_training.md](docs/v1_5_training.md) - resumable multi-source distillation and W&B workflow / 多源蒸馏、断点续训与 W&B 流程
 - [examples/toy_segmentation_demo/README.md](examples/toy_segmentation_demo/README.md)
 
 ## System Architecture / 系统架构

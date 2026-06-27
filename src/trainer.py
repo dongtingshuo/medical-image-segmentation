@@ -1,3 +1,4 @@
+import copy
 import csv
 import platform
 import time
@@ -8,10 +9,27 @@ from pathlib import Path
 import torch
 from tqdm import tqdm
 
+from src.ema import ExponentialMovingAverage
 from src.experiment import append_experiment_result
 from src.metrics import boundary_f1_score, dice_score, iou_score, precision_score, recall_score, specificity_score
+from src.tracking import create_tracker
 from src.utils import CHECKPOINT_FORMAT_VERSION, format_time, load_checkpoint, load_checkpoint_payload, save_checkpoint
 from src.visualization import plot_training_curves, save_sample_predictions
+
+
+def _unpack_batch(batch):
+    if not isinstance(batch, (list, tuple)) or len(batch) not in {2, 3}:
+        raise ValueError("Expected a training batch of (images, masks) or (images, masks, soft_masks).")
+    images, masks = batch[:2]
+    soft_masks = batch[2] if len(batch) == 3 else None
+    return images, masks, soft_masks
+
+
+def _criterion_loss(criterion, logits, masks, soft_masks=None):
+    if soft_masks is not None:
+        return criterion(logits, masks, soft_masks)
+    hard_loss = getattr(criterion, "hard_loss", None)
+    return hard_loss(logits, masks) if hard_loss is not None else criterion(logits, masks)
 
 
 def _metric_dict(logits, masks):
@@ -44,6 +62,8 @@ def train_one_epoch(
     use_amp=False,
     max_batches=None,
     gradient_accumulation_steps=1,
+    max_grad_norm=None,
+    ema=None,
 ):
     model.train()
     totals = {
@@ -56,19 +76,24 @@ def train_one_epoch(
         "boundary_f1": 0.0,
     }
     count = 0
+    gradient_norm_total = 0.0
+    optimizer_steps = 0
     accumulation_steps = max(1, int(gradient_accumulation_steps or 1))
     pending_steps = 0
     optimizer.zero_grad(set_to_none=True)
     progress = tqdm(dataloader, desc="train", leave=False)
-    for batch_idx, (images, masks) in enumerate(progress):
+    for batch_idx, batch in enumerate(progress):
         if max_batches is not None and batch_idx >= max_batches:
             break
+        images, masks, soft_masks = _unpack_batch(batch)
         images = images.to(device, non_blocking=True)
         masks = masks.to(device, non_blocking=True)
+        if soft_masks is not None:
+            soft_masks = soft_masks.to(device, non_blocking=True)
 
         with torch.amp.autocast("cuda", enabled=use_amp):
             logits = model(images)
-            loss = criterion(logits, masks)
+            loss = _criterion_loss(criterion, logits, masks, soft_masks)
         _ensure_finite_tensor(loss, "training loss")
         scaled_loss = loss / accumulation_steps
         if scaler is not None and use_amp:
@@ -78,10 +103,17 @@ def train_one_epoch(
         pending_steps += 1
         if pending_steps >= accumulation_steps:
             if scaler is not None and use_amp:
+                scaler.unscale_(optimizer)
+            if max_grad_norm is not None:
+                gradient_norm_total += float(torch.nn.utils.clip_grad_norm_(model.parameters(), float(max_grad_norm)))
+            if scaler is not None and use_amp:
                 scaler.step(optimizer)
                 scaler.update()
             else:
                 optimizer.step()
+            if ema is not None:
+                ema.update(model)
+            optimizer_steps += 1
             optimizer.zero_grad(set_to_none=True)
             pending_steps = 0
 
@@ -94,12 +126,21 @@ def train_one_epoch(
         progress.set_postfix(loss=totals["loss"] / count, dice=totals["dice"] / count)
     if pending_steps:
         if scaler is not None and use_amp:
+            scaler.unscale_(optimizer)
+        if max_grad_norm is not None:
+            gradient_norm_total += float(torch.nn.utils.clip_grad_norm_(model.parameters(), float(max_grad_norm)))
+        if scaler is not None and use_amp:
             scaler.step(optimizer)
             scaler.update()
         else:
             optimizer.step()
+        if ema is not None:
+            ema.update(model)
+        optimizer_steps += 1
         optimizer.zero_grad(set_to_none=True)
-    return {key: value / max(count, 1) for key, value in totals.items()}
+    metrics = {key: value / max(count, 1) for key, value in totals.items()}
+    metrics["gradient_norm"] = gradient_norm_total / max(optimizer_steps, 1)
+    return metrics
 
 
 @torch.no_grad()
@@ -116,13 +157,16 @@ def validate_one_epoch(model, dataloader, criterion, device, max_batches=None):
     }
     count = 0
     progress = tqdm(dataloader, desc="val", leave=False)
-    for batch_idx, (images, masks) in enumerate(progress):
+    for batch_idx, batch in enumerate(progress):
         if max_batches is not None and batch_idx >= max_batches:
             break
+        images, masks, soft_masks = _unpack_batch(batch)
         images = images.to(device, non_blocking=True)
         masks = masks.to(device, non_blocking=True)
+        if soft_masks is not None:
+            soft_masks = soft_masks.to(device, non_blocking=True)
         logits = model(images)
-        loss = criterion(logits, masks)
+        loss = _criterion_loss(criterion, logits, masks, soft_masks)
         _ensure_finite_tensor(loss, "validation loss")
         metrics = _metric_dict(logits, masks)
         batch_size = images.size(0)
@@ -162,6 +206,8 @@ def _empty_history():
         "val_recall": [],
         "val_specificity": [],
         "val_boundary_f1": [],
+        "val_composite": [],
+        "gradient_norm": [],
     }
 
 
@@ -172,6 +218,15 @@ def _history_from_checkpoint(checkpoint):
         for key in history:
             value = saved_history.get(key, [])
             history[key] = list(value) if isinstance(value, (list, tuple)) else []
+    expected_length = len(history["epoch"])
+    if expected_length and not history["val_composite"]:
+        history["val_composite"] = [
+            0.75 * dice + 0.25 * boundary
+            for dice, boundary in zip(history["val_dice"], history["val_boundary_f1"])
+        ]
+    for values in history.values():
+        if len(values) < expected_length:
+            values.extend([0.0] * (expected_length - len(values)))
     return history
 
 
@@ -184,11 +239,25 @@ def _score_from_metrics(metrics, monitor):
 
 def _time_stop_after_seconds(training_cfg):
     max_runtime_minutes = training_cfg.get("max_runtime_minutes")
-    if max_runtime_minutes in {None, "", 0, 0.0}:
+    if max_runtime_minutes in {None, "", 0}:
         return None
     safe_stop_minutes = float(training_cfg.get("safe_stop_minutes", 5.0))
     stop_after = (float(max_runtime_minutes) - safe_stop_minutes) * 60.0
     return max(0.0, stop_after)
+
+
+def _validate_wandb_resume_mapping(checkpoint, tracker, tracking_cfg):
+    saved_run_id = checkpoint.get("metadata", {}).get("wandb_run_id")
+    current_run_id = getattr(tracker, "run_id", None)
+    if not saved_run_id or not current_run_id:
+        return
+    allowed = {str(current_run_id)}
+    allowed.update(str(value) for value in tracking_cfg.get("resume_source_run_ids", []))
+    if str(saved_run_id) not in allowed:
+        raise ValueError(
+            f"Checkpoint W&B run mapping mismatch: checkpoint={saved_run_id}, current={current_run_id}. "
+            "Use the original stable run ID or explicitly declare a screening-to-teacher source run."
+        )
 
 
 def _should_stop_for_time(start_time, stop_after_seconds):
@@ -209,6 +278,7 @@ def _load_resume_state(
     default_best_score,
     restore_optimizer=True,
     resume_training_state=True,
+    ema=None,
 ):
     checkpoint = load_checkpoint_payload(resume_path, device=device)
     load_checkpoint(
@@ -229,6 +299,8 @@ def _load_resume_state(
             scaler.load_state_dict(checkpoint["scaler_state_dict"])
         except (ValueError, RuntimeError) as exc:
             warnings.warn(f"AMP scaler state was not restored: {exc}", RuntimeWarning, stacklevel=2)
+    if ema is not None and checkpoint.get("ema_state_dict") is not None:
+        ema.load_state_dict(checkpoint["ema_state_dict"])
 
     if not resume_training_state:
         return {
@@ -297,6 +369,10 @@ def train_model(
     start = time.time()
     stop_after_seconds = _time_stop_after_seconds(training_cfg)
     stopped_reason = None
+    tracking_cfg = config.get("tracking", {})
+    tracker = create_tracker(config, output_dir)
+    ema_cfg = training_cfg.get("ema", {})
+    ema = ExponentialMovingAverage(model, decay=float(ema_cfg.get("decay", 0.999))) if ema_cfg.get("enabled") else None
 
     history = _empty_history()
     start_epoch = 1
@@ -313,6 +389,7 @@ def train_model(
             default_best_score=best_score,
             restore_optimizer=bool(training_cfg.get("resume_optimizer", True)),
             resume_training_state=bool(training_cfg.get("resume_training_state", True)),
+            ema=ema,
         )
         start_epoch = resume_state["start_epoch"]
         history = resume_state["history"]
@@ -320,6 +397,7 @@ def train_model(
         bad_epochs = resume_state["bad_epochs"]
         best_metrics = resume_state["best_metrics"]
         best_epoch = resume_state["best_epoch"]
+        _validate_wandb_resume_mapping(resume_state["checkpoint"], tracker, tracking_cfg)
         print(f"Resuming training from {resume_path} at epoch {start_epoch}/{epochs}.")
 
         if not best_metrics and best_path.exists():
@@ -334,6 +412,7 @@ def train_model(
                 warnings.warn(f"Existing best checkpoint was not inspected during resume: {exc}", RuntimeWarning, stacklevel=2)
 
     for epoch in range(start_epoch, epochs + 1):
+        epoch_start = time.time()
         print(f"Epoch {epoch}/{epochs}")
         train_metrics = train_one_epoch(
             model,
@@ -345,7 +424,12 @@ def train_model(
             use_amp=use_amp,
             max_batches=training_cfg.get("max_train_batches"),
             gradient_accumulation_steps=training_cfg.get("gradient_accumulation_steps", 1),
+            max_grad_norm=training_cfg.get("gradient_clip_norm"),
+            ema=ema,
         )
+        if ema is not None:
+            ema.store(model)
+            ema.copy_to(model)
         val_metrics = validate_one_epoch(
             model,
             val_loader,
@@ -353,6 +437,9 @@ def train_model(
             device,
             max_batches=training_cfg.get("max_val_batches"),
         )
+        if ema is not None:
+            ema.restore(model)
+        val_metrics["composite"] = 0.75 * val_metrics["dice"] + 0.25 * val_metrics["boundary_f1"]
 
         if scheduler is not None:
             if scheduler.__class__.__name__ == "ReduceLROnPlateau":
@@ -369,6 +456,34 @@ def train_model(
         history["val_recall"].append(val_metrics["recall"])
         history["val_specificity"].append(val_metrics["specificity"])
         history["val_boundary_f1"].append(val_metrics["boundary_f1"])
+        history["val_composite"].append(val_metrics["composite"])
+        history["gradient_norm"].append(train_metrics.get("gradient_norm", 0.0))
+
+        learning_rates = {f"lr/{group.get('name', f'group_{index}')}": group["lr"] for index, group in enumerate(optimizer.param_groups)}
+        elapsed = time.time() - start
+        remaining = None if stop_after_seconds is None else max(0.0, stop_after_seconds - elapsed)
+        tracker.log(
+            {
+                "train/loss": train_metrics["loss"],
+                "train/dice": train_metrics["dice"],
+                "train/gradient_norm": train_metrics.get("gradient_norm", 0.0),
+                "val/loss": val_metrics["loss"],
+                "val/dice": val_metrics["dice"],
+                "val/iou": val_metrics["iou"],
+                "val/precision": val_metrics["precision"],
+                "val/recall": val_metrics["recall"],
+                "val/specificity": val_metrics["specificity"],
+                "val/boundary_f1": val_metrics["boundary_f1"],
+                "val/composite": val_metrics["composite"],
+                "runtime/epoch_seconds": time.time() - epoch_start,
+                "runtime/elapsed_minutes": elapsed / 60.0,
+                "runtime/remaining_minutes": None if remaining is None else remaining / 60.0,
+                "runtime/gpu_memory_mb": torch.cuda.max_memory_allocated(device) / 1024**2 if device.type == "cuda" else 0.0,
+                "ema/enabled": int(ema is not None),
+                **learning_rates,
+            },
+            step=epoch,
+        )
 
         print(
             "train_loss={:.4f} val_loss={:.4f} dice={:.4f} iou={:.4f} precision={:.4f} "
@@ -391,6 +506,7 @@ def train_model(
             "optimizer_state_dict": optimizer.state_dict(),
             "scheduler_state_dict": scheduler.state_dict() if scheduler is not None else None,
             "scaler_state_dict": scaler.state_dict() if scaler is not None else None,
+            "ema_state_dict": ema.state_dict() if ema is not None else None,
             "config": config,
             "val_metrics": val_metrics,
             "history": history,
@@ -406,6 +522,8 @@ def train_model(
                 "monitor_mode": mode,
                 "max_runtime_minutes": training_cfg.get("max_runtime_minutes"),
                 "safe_stop_minutes": training_cfg.get("safe_stop_minutes"),
+                "wandb_run_id": tracker.run_id,
+                "wandb_run_url": tracker.run_url,
             },
         }
 
@@ -424,7 +542,12 @@ def train_model(
             state["best_metrics"] = best_metrics
             state["best_epoch"] = best_epoch
             state["bad_epochs"] = bad_epochs
-            save_checkpoint(state, best_path)
+            best_state = copy.copy(state)
+            if ema is not None:
+                best_state["model_state_dict"] = {
+                    name: value.detach().clone() for name, value in ema.shadow.items()
+                }
+            save_checkpoint(best_state, best_path)
             print(f"Saved best checkpoint to {best_path}")
         else:
             bad_epochs += 1
@@ -433,9 +556,25 @@ def train_model(
                 print(f"Early stopping triggered after {bad_epochs} non-improving epochs.")
                 state["stopped_reason"] = "early_stopping"
                 save_checkpoint(state, last_path)
+                tracker.log(
+                    {
+                        "training/best_epoch": best_epoch,
+                        "training/bad_epochs": bad_epochs,
+                        "training/stop_reason": "early_stopping",
+                    },
+                    step=epoch,
+                )
                 stopped_reason = "early_stopping"
                 break
         save_checkpoint(state, last_path)
+        tracker.log(
+            {
+                "training/best_epoch": best_epoch,
+                "training/bad_epochs": bad_epochs,
+                "training/best_score": best_score,
+            },
+            step=epoch,
+        )
         if _should_stop_for_time(start, stop_after_seconds):
             stopped_reason = "time_budget"
             state["stopped_reason"] = stopped_reason
@@ -444,12 +583,8 @@ def train_model(
             state["best_metrics"] = best_metrics
             state["best_epoch"] = best_epoch
             save_checkpoint(state, last_path)
-            print(
-                "Time budget reached after epoch {}. Saved resumable checkpoint to {}.".format(
-                    epoch,
-                    last_path,
-                )
-            )
+            tracker.log({"training/stop_reason": "time_budget"}, step=epoch)
+            print(f"Time budget reached after epoch {epoch}. Saved resumable checkpoint to {last_path}.")
             break
 
     training_time = format_time(time.time() - start)
@@ -494,6 +629,27 @@ def train_model(
         "stopped_reason": stopped_reason or "",
     }
     append_experiment_result(output_dir, result)
+    tracker.summary(
+        {
+            "best_epoch": best_epoch,
+            "best_dice": best_metrics.get("dice"),
+            "best_boundary_f1": best_metrics.get("boundary_f1"),
+            "best_composite": best_metrics.get("composite"),
+            "stopped_reason": stopped_reason or "completed",
+        }
+    )
+    if tracking_cfg.get("upload_best_checkpoint", True):
+        artifact_files = [best_path, output_dir / "metrics.csv", curves_dir / "training_curves.png"]
+        artifact_files.extend(sorted(samples_dir.glob("*")))
+        artifact_files.extend(Path(path) for path in tracking_cfg.get("artifact_files", []))
+        tracker.log_artifact(
+            name=f"{tracker.run_id}-best",
+            files=artifact_files,
+            artifact_type="model",
+            aliases=["best"],
+            metadata={"best_epoch": best_epoch, "experiment_name": config.get("experiment_name", "")},
+        )
+    tracker.finish(exit_code=0)
     return {
         "history": history,
         "best_checkpoint": best_path,
