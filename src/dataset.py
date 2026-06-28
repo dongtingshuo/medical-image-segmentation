@@ -11,7 +11,7 @@ except ImportError:  # pragma: no cover
     A = None
 
 
-IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
+IMAGE_EXTENSIONS = {".bmp", ".jpg", ".jpeg", ".png"}
 
 
 def _require_albumentations():

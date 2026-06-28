@@ -50,6 +50,32 @@ def test_folds_round_trip_and_materialize_pairs(tmp_path):
     assert (tmp_path / "fold_data/fold_0/val/masks").exists()
 
 
+def test_materialize_fold_directories_supports_bmp_pairs(tmp_path):
+    images = tmp_path / "source/images"
+    masks = tmp_path / "source/masks"
+    images.mkdir(parents=True)
+    masks.mkdir(parents=True)
+    (images / "ph2__IMD002.bmp").write_bytes(b"image")
+    (masks / "ph2__IMD002.bmp").write_bytes(b"mask")
+    folds = [
+        {"fold": 0, "train_ids": ["ph2__IMD002"], "val_ids": []},
+        {"fold": 1, "train_ids": [], "val_ids": ["ph2__IMD002"]},
+    ]
+
+    output = materialize_fold_directories(images, masks, folds, tmp_path / "fold_data")
+
+    assert (output / "fold_0/train/images/ph2__IMD002.bmp").read_bytes() == b"image"
+    assert (output / "fold_1/val/masks/ph2__IMD002.bmp").read_bytes() == b"mask"
+
+
+def test_materialize_fold_directories_reports_missing_manifest_stems(tmp_path):
+    images, masks = _touch_pair(tmp_path / "source", "present")
+    folds = [{"fold": 0, "train_ids": ["missing"], "val_ids": ["present"]}]
+
+    with pytest.raises(ValueError, match="missing_images=\\['missing'\\]"):
+        materialize_fold_directories(images, masks, folds, tmp_path / "fold_data")
+
+
 def test_paired_stems_reports_mismatch(tmp_path):
     images, masks = _touch_pair(tmp_path / "source", "a")
     (images / "orphan.jpg").write_text("image", encoding="utf-8")

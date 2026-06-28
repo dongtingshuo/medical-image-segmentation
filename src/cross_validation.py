@@ -6,7 +6,7 @@ import random
 import shutil
 from pathlib import Path
 
-IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
+IMAGE_EXTENSIONS = {".bmp", ".jpg", ".jpeg", ".png"}
 
 
 def paired_stems(images_dir, masks_dir):
@@ -132,6 +132,19 @@ def materialize_fold_directories(images_dir, masks_dir, folds, output_root, mode
     output_root = Path(output_root)
     stem_to_image = {path.stem: path for path in images_dir.iterdir() if path.suffix.lower() in IMAGE_EXTENSIONS}
     stem_to_mask = {path.stem: path for path in masks_dir.iterdir() if path.suffix.lower() in IMAGE_EXTENSIONS}
+    requested_stems = {
+        stem
+        for fold in folds
+        for split in ("train_ids", "val_ids")
+        for stem in fold[split]
+    }
+    missing_images = sorted(requested_stems - set(stem_to_image))
+    missing_masks = sorted(requested_stems - set(stem_to_mask))
+    if missing_images or missing_masks:
+        raise ValueError(
+            "Fold samples are missing from the materialization inputs. "
+            f"missing_images={missing_images[:10]}, missing_masks={missing_masks[:10]}"
+        )
     for fold in folds:
         fold_root = output_root / f"fold_{int(fold['fold'])}"
         for split, ids in (("train", fold["train_ids"]), ("val", fold["val_ids"])):

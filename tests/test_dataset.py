@@ -39,6 +39,28 @@ def test_dataset_rejects_image_mask_size_mismatch(tmp_path):
         _ = dataset[0]
 
 
+def test_dataset_loads_ph2_bmp_pair(tmp_path):
+    cv2 = pytest.importorskip("cv2")
+    from src.dataset import SkinLesionDataset
+
+    images_dir = tmp_path / "images"
+    masks_dir = tmp_path / "masks"
+    images_dir.mkdir()
+    masks_dir.mkdir()
+    image = np.full((16, 18, 3), 64, dtype=np.uint8)
+    mask = np.zeros((16, 18), dtype=np.uint8)
+    mask[4:12, 5:14] = 255
+    cv2.imwrite(str(images_dir / "ph2__IMD002.bmp"), image)
+    cv2.imwrite(str(masks_dir / "ph2__IMD002.bmp"), mask)
+
+    dataset = SkinLesionDataset(images_dir, masks_dir, transform=None)
+    image_tensor, mask_tensor = dataset[0]
+
+    assert image_tensor.shape == (3, 16, 18)
+    assert mask_tensor.shape == (1, 16, 18)
+    assert mask_tensor.sum().item() == 72
+
+
 def test_low_contrast_train_transform_preserves_shapes_and_binary_mask():
     pytest.importorskip("albumentations")
     from src.dataset import get_train_transforms
