@@ -57,6 +57,47 @@ def test_state_restore_rejects_corrupt_archive(tmp_path):
         restore_state_archive(archive, tmp_path / "restored")
 
 
+def test_state_package_prunes_redundant_completed_checkpoints(tmp_path):
+    root = tmp_path / "research_v1_5"
+    state = {
+        "phase": "teachers",
+        "architectures": ["segformer", "unetpp"],
+        "completed": [
+            "model:screen-manet-fold0",
+            "model:screen-segformer-fold0",
+            "model:screen-unetpp-fold0",
+            "model:teacher-segformer-fold0",
+        ],
+    }
+    (root / "pipeline_state.json").parent.mkdir(parents=True)
+    (root / "pipeline_state.json").write_text(json.dumps(state), encoding="utf-8")
+    task_names = [
+        "screen-manet-fold0",
+        "screen-segformer-fold0",
+        "screen-unetpp-fold0",
+        "teacher-segformer-fold0",
+        "teacher-unetpp-fold1",
+    ]
+    for task_name in task_names:
+        checkpoint_dir = root / "models" / task_name / "checkpoints"
+        checkpoint_dir.mkdir(parents=True)
+        (checkpoint_dir / "best_model.pth").write_bytes(f"best:{task_name}".encode())
+        (checkpoint_dir / "last_model.pth").write_bytes(f"last:{task_name}".encode())
+
+    archive = package_state(root)
+    restored = tmp_path / "restored"
+    restore_state_archive(archive, restored)
+
+    assert not (restored / "models/screen-manet-fold0/checkpoints").exists()
+    assert not (restored / "models/screen-segformer-fold0/checkpoints").exists()
+    assert (restored / "models/screen-unetpp-fold0/checkpoints/best_model.pth").exists()
+    assert (restored / "models/screen-unetpp-fold0/checkpoints/last_model.pth").exists()
+    assert (restored / "models/teacher-segformer-fold0/checkpoints/best_model.pth").exists()
+    assert not (restored / "models/teacher-segformer-fold0/checkpoints/last_model.pth").exists()
+    assert (restored / "models/teacher-unetpp-fold1/checkpoints/best_model.pth").exists()
+    assert (restored / "models/teacher-unetpp-fold1/checkpoints/last_model.pth").exists()
+
+
 def test_release_package_contains_only_locked_publishable_variants(tmp_path):
     root = tmp_path / "research"
     model = root / "models/student-unetpp"

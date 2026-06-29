@@ -99,6 +99,7 @@ def main():
     parser.add_argument("--ph2-images-rel", default=os.environ.get("V15_PH2_IMAGES_REL"))
     parser.add_argument("--ph2-masks-rel", default=os.environ.get("V15_PH2_MASKS_REL"))
     parser.add_argument("--state-input")
+    parser.add_argument("--allow-state-mismatch", action="store_true")
     args = parser.parse_args()
 
     input_root, working_root = resolve_runtime_roots(args.input_root, args.working_root)
@@ -155,6 +156,8 @@ def main():
     ]
     if state_input:
         command.extend(["--state-input", state_input])
+    if args.allow_state_mismatch:
+        command.append("--allow-state-mismatch")
     if args.debug:
         command.extend(["--runtime-minutes", "25", "--reserve-minutes", "3"])
     run(command, cwd=repository_root)

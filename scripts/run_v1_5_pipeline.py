@@ -159,6 +159,10 @@ def package_state(output_root):
     output_root = Path(output_root)
     archive = output_root.parent / "v1_5_state.zip"
     excluded_parts = {"validation_probability_cache", "streaming", "fold_data", "release"}
+    state_path = output_root / "pipeline_state.json"
+    state = json.loads(state_path.read_text(encoding="utf-8")) if state_path.exists() else {}
+    completed = set(state.get("completed", []))
+    selected_architectures = set(state.get("architectures", []))
     with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=3) as handle:
         for path in sorted(output_root.rglob("*")):
             if not path.is_file() or any(part in excluded_parts for part in path.parts):
@@ -170,6 +174,16 @@ def package_state(output_root):
                 continue
             if relative.parts[:2] in {("merged_train", "images"), ("merged_train", "masks")}:
                 continue
+            if len(relative.parts) >= 4 and relative.parts[0] == "models" and relative.parts[2] == "checkpoints":
+                task_name = relative.parts[1]
+                if task_name.startswith("screen-"):
+                    architecture = task_name.removeprefix("screen-").rsplit("-fold", 1)[0]
+                    teacher_fold0_complete = f"model:teacher-{architecture}-fold0" in completed
+                    screening_loser = selected_architectures and architecture not in selected_architectures
+                    if teacher_fold0_complete or screening_loser:
+                        continue
+                elif relative.name == "last_model.pth" and f"model:{task_name}" in completed:
+                    continue
             handle.write(path, relative)
     digest = sha256_file(archive)
     archive.with_suffix(archive.suffix + ".sha256").write_text(f"{digest}  {archive.name}\n", encoding="utf-8")
