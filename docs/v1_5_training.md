@@ -23,6 +23,8 @@ Create Kaggle Secrets named `WANDB_API_KEY` and optionally `WANDB_ENTITY`. The n
 
 Use W&B project `medseg-v1-5` and keep the project private in W&B settings. Each task has a stable run ID, and all runs use `resume="allow"`, matching the documented [`WANDB_RESUME`/`WANDB_RUN_ID` behavior](https://docs.wandb.ai/models/track/environment-variables). Network failures fall back to the state package's `wandb-offline` directory; the next connected session follows W&B's [offline sync workflow](https://docs.wandb.ai/support/models/articles/how-do-i-run-wandb-offline).
 
+Formal and debug Kaggle entrypoints pass `--require-wandb-online`. They stop before data preparation or GPU training unless the Kernel can read `WANDB_API_KEY` and complete a real online smoke run. A later transient logging failure may still switch the active run to the state package's offline directory so a long session remains resumable.
+
 ## Sessions
 
 Run the same entrypoint for every Kaggle session:

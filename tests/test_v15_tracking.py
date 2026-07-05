@@ -98,6 +98,24 @@ def test_wandb_missing_key_or_network_failure_falls_back_offline(monkeypatch, tm
     assert tracker.run_id == "teacher-unetpp-fold0"
 
 
+def test_wandb_required_online_rejects_missing_key_or_network_failure(monkeypatch, tmp_path):
+    config = _config()
+    config["tracking"]["require_online"] = True
+    monkeypatch.delenv("WANDB_API_KEY", raising=False)
+    missing_key = FakeWandb()
+    monkeypatch.setitem(sys.modules, "wandb", missing_key)
+    with pytest.raises(RuntimeError, match="online initialization is required"):
+        WandbTracker(config, tmp_path / "missing-key")
+    assert missing_key.calls == []
+
+    monkeypatch.setenv("WANDB_API_KEY", "value")
+    failure = FakeWandb(fail_online=True)
+    monkeypatch.setitem(sys.modules, "wandb", failure)
+    with pytest.raises(RuntimeError, match="online initialization is required"):
+        WandbTracker(config, tmp_path / "failure")
+    assert [call[0] for call in failure.calls] == ["online"]
+
+
 def test_wandb_log_failure_reopens_same_run_offline(monkeypatch, tmp_path):
     monkeypatch.setenv("WANDB_API_KEY", "value")
     fake = FakeWandb(fail_log=True)

@@ -155,9 +155,41 @@ def restore_state_archive(archive, output_root):
         handle.extractall(output_root)
 
 
+def should_prune_state_file(relative, completed, selected_architectures):
+    if len(relative.parts) < 4 or relative.parts[0] != "models" or relative.parts[2] != "checkpoints":
+        return False
+    task_name = relative.parts[1]
+    if task_name.startswith("screen-"):
+        architecture = task_name.removeprefix("screen-").rsplit("-fold", 1)[0]
+        teacher_fold0_complete = f"model:teacher-{architecture}-fold0" in completed
+        screening_loser = selected_architectures and architecture not in selected_architectures
+        return bool(teacher_fold0_complete or screening_loser)
+    return relative.name == "last_model.pth" and f"model:{task_name}" in completed
+
+
+def prune_redundant_state_files(output_root):
+    output_root = Path(output_root)
+    state_path = output_root / "pipeline_state.json"
+    state = json.loads(state_path.read_text(encoding="utf-8")) if state_path.exists() else {}
+    completed = set(state.get("completed", []))
+    selected_architectures = set(state.get("architectures", []))
+    for path in sorted((output_root / "models").glob("*/checkpoints/*")):
+        if not path.is_file():
+            continue
+        relative = path.relative_to(output_root)
+        if should_prune_state_file(relative, completed, selected_architectures):
+            path.unlink(missing_ok=True)
+    for checkpoint_dir in sorted((output_root / "models").glob("*/checkpoints")):
+        if checkpoint_dir.exists() and not any(checkpoint_dir.iterdir()):
+            checkpoint_dir.rmdir()
+
+
 def package_state(output_root):
     output_root = Path(output_root)
+    prune_redundant_state_files(output_root)
     archive = output_root.parent / "v1_5_state.zip"
+    archive.unlink(missing_ok=True)
+    archive.with_suffix(archive.suffix + ".sha256").unlink(missing_ok=True)
     excluded_parts = {"validation_probability_cache", "streaming", "fold_data", "release"}
     state_path = output_root / "pipeline_state.json"
     state = json.loads(state_path.read_text(encoding="utf-8")) if state_path.exists() else {}
@@ -174,16 +206,8 @@ def package_state(output_root):
                 continue
             if relative.parts[:2] in {("merged_train", "images"), ("merged_train", "masks")}:
                 continue
-            if len(relative.parts) >= 4 and relative.parts[0] == "models" and relative.parts[2] == "checkpoints":
-                task_name = relative.parts[1]
-                if task_name.startswith("screen-"):
-                    architecture = task_name.removeprefix("screen-").rsplit("-fold", 1)[0]
-                    teacher_fold0_complete = f"model:teacher-{architecture}-fold0" in completed
-                    screening_loser = selected_architectures and architecture not in selected_architectures
-                    if teacher_fold0_complete or screening_loser:
-                        continue
-                elif relative.name == "last_model.pth" and f"model:{task_name}" in completed:
-                    continue
+            if should_prune_state_file(relative, completed, selected_architectures):
+                continue
             handle.write(path, relative)
     digest = sha256_file(archive)
     archive.with_suffix(archive.suffix + ".sha256").write_text(f"{digest}  {archive.name}\n", encoding="utf-8")
@@ -529,6 +553,10 @@ def run_teachers(base, output_root, group, budget, manifest, state):
 def run_oof(output_root, state):
     if "oof_generated" in state["completed"]:
         return True
+    prune_redundant_state_files(output_root)
+    soft_masks_dir = output_root / "oof/soft_masks"
+    if soft_masks_dir.exists():
+        shutil.rmtree(soft_masks_dir)
     command = [
         sys.executable,
         "scripts/generate_oof_targets.py",
@@ -737,6 +765,7 @@ def main():
     parser.add_argument("--runtime-minutes", type=float, default=570)
     parser.add_argument("--reserve-minutes", type=float, default=30)
     parser.add_argument("--allow-state-mismatch", action="store_true")
+    parser.add_argument("--require-wandb-online", action="store_true")
     args = parser.parse_args()
 
     output_root = Path(args.output_root).resolve()
@@ -752,6 +781,8 @@ def main():
     state_path = output_root / "pipeline_state.json"
     state = load_state(state_path)
     base = load_config(args.config)
+    if args.require_wandb_online:
+        base.setdefault("tracking", {})["require_online"] = True
     current_commit = git_commit()
     config_hash = sha256_file(args.config)
     if not args.allow_state_mismatch:

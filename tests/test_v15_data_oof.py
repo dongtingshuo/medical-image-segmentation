@@ -109,7 +109,7 @@ def test_oof_outputs_require_both_architectures_and_preserve_geometry(tmp_path):
     result = write_oof_outputs(predictions, folds, manifest, images, masks, tmp_path / "oof")
     soft_a = cv2.imread(str(result["soft_masks_dir"] / "a.png"), cv2.IMREAD_UNCHANGED)
     assert soft_a.shape == (20, 30)
-    assert soft_a.dtype == np.uint16
+    assert soft_a.dtype == np.uint8
     with result["weights"].open(newline="", encoding="utf-8") as handle:
         rows = list(csv.DictReader(handle))
     assert len(rows) == 2

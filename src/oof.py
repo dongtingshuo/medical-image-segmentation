@@ -73,7 +73,7 @@ def resize_target(mask, output_shape, resize_mode="letterbox"):
 def write_soft_mask(path, probability):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    encoded = np.rint(np.clip(probability, 0.0, 1.0) * 65535.0).astype(np.uint16)
+    encoded = np.rint(np.clip(probability, 0.0, 1.0) * 255.0).astype(np.uint8)
     if not cv2.imwrite(str(path), encoded):
         raise OSError(f"Failed to write OOF soft mask: {path}")
     return path

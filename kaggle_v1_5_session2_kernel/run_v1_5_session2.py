@@ -2,7 +2,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-
 REPOSITORY_URL = "https://github.com/dongtingshuo/medical-image-segmentation.git"
 WORKING_ROOT = Path("/kaggle/working")
 REPOSITORY_ROOT = WORKING_ROOT / "medical-image-segmentation"
@@ -24,6 +23,7 @@ def main():
             "notebooks/kaggle_v1_5.py",
             "--use-existing-repo",
             "--allow-state-mismatch",
+            "--require-wandb-online",
         ],
         cwd=REPOSITORY_ROOT,
     )

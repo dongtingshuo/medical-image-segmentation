@@ -41,7 +41,7 @@ def resolve_pair_roots(root, images_relative, masks_relative, label):
     return images, masks
 
 
-def load_wandb_secrets():
+def load_wandb_secrets(require_online=False):
     try:
         from kaggle_secrets import UserSecretsClient
 
@@ -56,8 +56,40 @@ def load_wandb_secrets():
         if entity:
             os.environ["WANDB_ENTITY"] = entity
         print("W&B secret loaded without writing it to disk or logs.", flush=True)
+        return bool(api_key)
     except Exception as exc:  # noqa: BLE001
+        if require_online:
+            raise RuntimeError(
+                "WANDB_API_KEY must be attached to this Kaggle Kernel before online training starts."
+            ) from exc
         print(f"WANDB_API_KEY is unavailable; runs will be stored offline: {exc}", flush=True)
+        return False
+
+
+def verify_wandb_online():
+    import wandb
+
+    api_key = os.environ.get("WANDB_API_KEY")
+    if not api_key:
+        raise RuntimeError("WANDB_API_KEY is unavailable for the online smoke test.")
+    os.environ["WANDB_MODE"] = "online"
+    smoke = wandb.init(
+        project="medseg-v1-5",
+        entity=os.environ.get("WANDB_ENTITY"),
+        id="kaggle-online-smoke-v15",
+        name="kaggle-online-smoke-v15",
+        job_type="smoke-test",
+        resume="allow",
+        mode="online",
+        settings=wandb.Settings(init_timeout=120),
+    )
+    try:
+        smoke.log({"smoke/online": 1})
+        if not getattr(smoke, "url", None):
+            raise RuntimeError("W&B online smoke test did not return a run URL.")
+        print(f"W&B online smoke test passed: {smoke.url}", flush=True)
+    finally:
+        smoke.finish()
 
 
 def resolve_runtime_roots(input_root=None, working_root=None):
@@ -100,6 +132,7 @@ def main():
     parser.add_argument("--ph2-masks-rel", default=os.environ.get("V15_PH2_MASKS_REL"))
     parser.add_argument("--state-input")
     parser.add_argument("--allow-state-mismatch", action="store_true")
+    parser.add_argument("--require-wandb-online", action="store_true")
     args = parser.parse_args()
 
     input_root, working_root = resolve_runtime_roots(args.input_root, args.working_root)
@@ -116,7 +149,11 @@ def main():
     if wandb_version != "0.22.3":
         raise RuntimeError(f"Expected wandb 0.22.3 for new API keys, found {wandb_version}")
     print(f"W&B SDK: {wandb_version}", flush=True)
-    load_wandb_secrets()
+    secret_loaded = load_wandb_secrets(require_online=args.require_wandb_online)
+    if args.require_wandb_online:
+        if not secret_loaded:
+            raise RuntimeError("W&B online mode was requested but its Kaggle Secret was not loaded.")
+        verify_wandb_online()
     run([sys.executable, "scripts/kaggle_prepare_gpu.py", "--install-if-needed"], cwd=repository_root)
     if not args.skip_tests:
         run([sys.executable, "-m", "pytest", "-q"], cwd=repository_root)
@@ -158,6 +195,8 @@ def main():
         command.extend(["--state-input", state_input])
     if args.allow_state_mismatch:
         command.append("--allow-state-mismatch")
+    if args.require_wandb_online:
+        command.append("--require-wandb-online")
     if args.debug:
         command.extend(["--runtime-minutes", "25", "--reserve-minutes", "3"])
     run(command, cwd=repository_root)

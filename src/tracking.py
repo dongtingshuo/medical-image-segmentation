@@ -39,12 +39,17 @@ class WandbTracker(NullTracker):
         self._wandb = None
         self._run = None
         self._init_kwargs = {}
+        self.require_online = bool(tracking.get("require_online", False))
         try:
             import wandb
 
             self._wandb = wandb
             requested_mode = str(tracking.get("mode", "online"))
+            if self.require_online and requested_mode != "online":
+                raise ValueError("W&B require_online needs tracking.mode=online.")
             if requested_mode == "online" and not os.environ.get("WANDB_API_KEY"):
+                if self.require_online:
+                    raise RuntimeError("WANDB_API_KEY is required for online W&B tracking.")
                 requested_mode = "offline"
             default_offline = Path(os.environ.get("WANDB_DIR", self.output_dir / "wandb-offline"))
             wandb_dir = Path(tracking.get("offline_dir", default_offline))
@@ -66,6 +71,8 @@ class WandbTracker(NullTracker):
             self.run_url = getattr(self._run, "url", None)
             self._write_state(requested_mode)
         except Exception as exc:  # noqa: BLE001
+            if self.require_online:
+                raise RuntimeError(f"W&B online initialization is required for run {self.run_id}.") from exc
             warnings.warn(f"W&B online initialization failed; switching to offline logging: {exc}", stacklevel=2)
             self._start_offline()
 
