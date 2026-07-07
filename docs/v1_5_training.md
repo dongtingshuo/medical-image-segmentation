@@ -15,15 +15,13 @@ Mount these datasets as Kaggle inputs and pass their locations through CLI argum
 - ISIC 2016 train and test images/masks, combined under the supplied image and mask roots.
 - PH2 images and expert masks.
 
-No raw image is uploaded to W&B. `data_manifest.csv` records accepted/removed samples, hashes, source, contrast, lesion ratio, and duplicate decisions.
+No raw image is uploaded to external tracking services by default. `data_manifest.csv` records accepted/removed samples, hashes, source, contrast, lesion ratio, and duplicate decisions.
 
-## W&B Secrets
+## W&B Tracking
 
-Create Kaggle Secrets named `WANDB_API_KEY` and optionally `WANDB_ENTITY`. The notebook reads them with `kaggle_secrets.UserSecretsClient` and only exports them to the process environment. The values are never written to YAML, checkpoints, manifests, commands, or logs. W&B documents the secure environment-variable pattern and the `wandb==0.22.3` requirement for newer keys in its [API key guide](https://docs.wandb.ai/models/track/public-api-guide).
+W&B support remains in the codebase, but v1.5 Kaggle configs now default to `tracking.enabled: false`. No W&B Secret is required for the default formal/debug kernels, and the pipeline uses local histories, metrics, checkpoints, and the resumable state package as the source of truth.
 
-Use W&B project `medseg-v1-5` and keep the project private in W&B settings. Each task has a stable run ID, and all runs use `resume="allow"`, matching the documented [`WANDB_RESUME`/`WANDB_RUN_ID` behavior](https://docs.wandb.ai/models/track/environment-variables). Network failures fall back to the state package's `wandb-offline` directory; the next connected session follows W&B's [offline sync workflow](https://docs.wandb.ai/support/models/articles/how-do-i-run-wandb-offline).
-
-Formal and debug Kaggle entrypoints pass `--require-wandb-online`. They stop before data preparation or GPU training unless the Kernel can read `WANDB_API_KEY` and complete a real online smoke run. A later transient logging failure may still switch the active run to the state package's offline directory so a long session remains resumable.
+To re-enable W&B for a future experiment, set `tracking.enabled: true`, choose `tracking.mode: online` or `offline`, attach Kaggle Secrets named `WANDB_API_KEY` and optionally `WANDB_ENTITY`, and pass `--require-wandb-online` only when the run must hard-fail before training if online W&B is unavailable.
 
 ## Sessions
 

@@ -23,7 +23,6 @@ def main():
             "notebooks/kaggle_v1_5.py",
             "--use-existing-repo",
             "--debug",
-            "--require-wandb-online",
         ],
         cwd=REPOSITORY_ROOT,
     )

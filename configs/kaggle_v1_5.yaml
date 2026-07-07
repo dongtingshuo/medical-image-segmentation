@@ -67,10 +67,10 @@ augmentation:
   artifact_p: 0.20
 
 tracking:
-  enabled: true
-  mode: online
+  enabled: false
+  mode: disabled
   project: medseg-v1-5
-  upload_best_checkpoint: true
+  upload_best_checkpoint: false
 
 paths:
   output_dir: outputs/v1_5_runtime

@@ -55,8 +55,8 @@ augmentation:
   vertical_flip: true
 
 tracking:
-  enabled: true
-  mode: online
+  enabled: false
+  mode: disabled
   project: medseg-v1-5
 
 paths:
