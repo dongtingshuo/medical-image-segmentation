@@ -54,6 +54,7 @@ def test_greedy_selection_keeps_best_member_when_extra_model_hurts(tmp_path):
 def test_segformer_wrapper_outputs_one_channel_same_size(monkeypatch):
     class FakeConfig:
         def __init__(self, **kwargs):
+            self.__dict__.update(kwargs)
             self.num_labels = kwargs.get("num_labels", 1)
 
         @classmethod
@@ -65,6 +66,7 @@ def test_segformer_wrapper_outputs_one_channel_same_size(monkeypatch):
     class FakeSegformer(nn.Module):
         def __init__(self, _config=None):
             super().__init__()
+            self.config = _config
             self.segformer = nn.Conv2d(3, 4, 1)
             self.decode = nn.Conv2d(4, 1, 1)
 
@@ -83,3 +85,5 @@ def test_segformer_wrapper_outputs_one_channel_same_size(monkeypatch):
     output = model(torch.randn(2, 3, 32, 40))
     assert output.shape == (2, 1, 32, 40)
     assert model.encoder is model.model.segformer
+    mit_b3 = SegFormerBinary(encoder_name="nvidia/mit-b3", encoder_weights=None)
+    assert mit_b3.model.config.depths == [3, 4, 18, 3]

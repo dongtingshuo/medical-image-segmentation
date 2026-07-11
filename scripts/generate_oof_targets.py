@@ -14,6 +14,7 @@ if str(ROOT) not in sys.path:
 
 from src.cross_validation import read_folds  # noqa: E402
 from src.dataset import SkinLesionDataset, get_val_transforms  # noqa: E402
+from src.ensemble_v15 import tta_probabilities  # noqa: E402
 from src.inference import build_model_from_config  # noqa: E402
 from src.oof import write_oof_outputs  # noqa: E402
 from src.utils import (  # noqa: E402
@@ -44,7 +45,7 @@ def _subset_dataset(config, images_dir, masks_dir, stems):
 
 
 @torch.no_grad()
-def predict_member(member, fold, images_dir, masks_dir, device):
+def predict_member(member, fold, images_dir, masks_dir, device, tta="none"):
     architecture, _, config_path, checkpoint_path = member
     config = load_config(config_path)
     expected_name = f"teacher-{architecture}-fold{fold['fold']}"
@@ -69,7 +70,7 @@ def predict_member(member, fold, images_dir, masks_dir, device):
     predictions = {}
     offset = 0
     for images, _ in loader:
-        probabilities = torch.sigmoid(model(images.to(device, non_blocking=True))).cpu().numpy().astype(np.float16)
+        probabilities = tta_probabilities(model, images.to(device, non_blocking=True), mode=tta).cpu().numpy().astype(np.float16)
         batch_stems = fold["val_ids"][offset : offset + len(probabilities)]
         for stem, probability in zip(batch_stems, probabilities):
             predictions[stem] = probability[0]
@@ -92,6 +93,7 @@ def main():
     parser.add_argument("--output-root", required=True)
     parser.add_argument("--expected-architectures", type=int, default=2)
     parser.add_argument("--device", default="auto")
+    parser.add_argument("--tta", default="none", choices=["none", "flip", "multiscale_flip"])
     args = parser.parse_args()
 
     members = [parse_member(value) for value in args.member]
@@ -114,7 +116,7 @@ def main():
     for member in members:
         architecture, fold_index, _, _ = member
         fold_predictions, config = predict_member(
-            member, folds_by_index[fold_index], args.images_dir, args.masks_dir, device
+            member, folds_by_index[fold_index], args.images_dir, args.masks_dir, device, tta=args.tta
         )
         predictions[architecture].update(fold_predictions)
         resize_modes.add(str(config.get("data", {}).get("resize_mode", "stretch")))

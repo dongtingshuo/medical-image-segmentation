@@ -1,0 +1,50 @@
+experiment_name: kaggle_v1_6_debug
+seed: 42
+reproducibility:
+  deterministic: true
+device: auto
+require_gpu: true
+mixed_precision: true
+data:
+  image_size: 128
+  resize_mode: letterbox
+model:
+  model_name: unet_plus_plus
+  in_channels: 3
+  out_channels: 1
+  encoder_name: efficientnet-b3
+  encoder_weights: imagenet
+training:
+  batch_size: 2
+  gradient_accumulation_steps: 1
+  epochs: 2
+  lr: 1.0e-4
+  encoder_lr: 2.0e-5
+  decoder_lr: 1.0e-4
+  weight_decay: 1.0e-4
+  optimizer: adamw
+  scheduler: warmup_cosine
+  warmup_epochs: 1
+  gradient_clip_norm: 1.0
+  num_workers: 0
+  max_runtime_minutes: 25
+  safe_stop_minutes: 3
+  resume_optimizer: true
+  resume_training_state: true
+  ema:
+    enabled: false
+  early_stopping:
+    enabled: true
+    patience: 1
+    monitor: val_dice
+    mode: max
+loss:
+  name: bce_dice
+augmentation:
+  enabled: false
+tracking:
+  enabled: false
+  mode: disabled
+paths:
+  output_dir: outputs/v1_6_debug
+  checkpoint_dir: checkpoints/v1_6_debug

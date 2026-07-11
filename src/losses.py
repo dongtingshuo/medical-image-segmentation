@@ -167,6 +167,57 @@ class DistillationSegmentationLoss(nn.Module):
         return self.hard_weight * hard + self.soft_bce_weight * soft_bce + self.soft_dice_weight * soft_dice
 
 
+class BootstrappedBCEDiceLoss(nn.Module):
+    """BCE + Dice with detached self-targets for noisy pretraining labels."""
+
+    def __init__(self, beta=0.85, bce_weight=0.5, dice_weight=0.5):
+        super().__init__()
+        if not 0.0 < float(beta) <= 1.0:
+            raise ValueError(f"beta must be in (0, 1], got {beta}")
+        if float(bce_weight) < 0 or float(dice_weight) < 0 or float(bce_weight) + float(dice_weight) <= 0:
+            raise ValueError("Bootstrapped BCE/Dice weights must be non-negative with a positive total.")
+        self.beta = float(beta)
+        self.bce_weight = float(bce_weight)
+        self.dice_weight = float(dice_weight)
+        self.dice = DiceLoss()
+
+    def forward(self, logits, targets):
+        bootstrap_targets = self.beta * targets + (1.0 - self.beta) * torch.sigmoid(logits).detach()
+        bce = F.binary_cross_entropy_with_logits(logits, bootstrap_targets)
+        return self.bce_weight * bce + self.dice_weight * self.dice(logits, targets)
+
+
+class ConfidenceGatedDistillationLoss(nn.Module):
+    """Keep hard labels dominant and distil only high-confidence teacher pixels."""
+
+    def __init__(self, hard_loss=None, hard_weight=0.90, soft_bce_weight=0.07, soft_dice_weight=0.03, temperature=2.0, confidence_threshold=0.60):
+        super().__init__()
+        total = float(hard_weight) + float(soft_bce_weight) + float(soft_dice_weight)
+        if total <= 0:
+            raise ValueError("Confidence-gated distillation weights must have a positive total.")
+        if not 0.0 <= float(confidence_threshold) <= 1.0:
+            raise ValueError("confidence_threshold must be in [0, 1].")
+        self.hard_loss = hard_loss or BCEDiceLoss()
+        self.hard_weight = float(hard_weight)
+        self.soft_bce_weight = float(soft_bce_weight)
+        self.soft_dice_weight = float(soft_dice_weight)
+        self.temperature = float(temperature)
+        self.confidence_threshold = float(confidence_threshold)
+
+    def forward(self, logits, targets, soft_targets):
+        hard = self.hard_loss(logits, targets)
+        confidence = (soft_targets - 0.5).abs() * 2.0
+        gate = (confidence >= self.confidence_threshold).float()
+        temperature = max(self.temperature, 1e-6)
+        soft_bce = F.binary_cross_entropy_with_logits(logits / temperature, soft_targets, reduction="none")
+        soft_bce = (soft_bce * gate).sum() / gate.sum().clamp_min(1.0)
+        probabilities = torch.sigmoid(logits / temperature)
+        intersection = (probabilities * soft_targets * gate).sum(dim=(1, 2, 3))
+        denominator = ((probabilities + soft_targets) * gate).sum(dim=(1, 2, 3))
+        soft_dice = 1.0 - ((2.0 * intersection + 1.0) / (denominator + 1.0)).mean()
+        return self.hard_weight * hard + self.soft_bce_weight * soft_bce + self.soft_dice_weight * soft_dice
+
+
 def get_loss(loss_name):
     name = str(loss_name).lower()
     if name == "bce":
@@ -238,5 +289,25 @@ def build_loss(config):
             soft_bce_weight=float(loss_cfg.get("soft_bce_weight", 0.25)),
             soft_dice_weight=float(loss_cfg.get("soft_dice_weight", 0.15)),
             temperature=float(loss_cfg.get("temperature", 2.0)),
+        )
+    if name == "bootstrapped_bce_dice":
+        return BootstrappedBCEDiceLoss(
+            beta=float(loss_cfg.get("beta", 0.85)),
+            bce_weight=float(loss_cfg.get("bce_weight", 0.5)),
+            dice_weight=float(loss_cfg.get("dice_weight", 0.5)),
+        )
+    if name == "confidence_gated_distillation":
+        hard_cfg = dict(loss_cfg.get("hard_loss", {}))
+        hard_loss = BCEDiceLoss(
+            bce_weight=float(hard_cfg.get("bce_weight", 0.5)),
+            dice_weight=float(hard_cfg.get("dice_weight", 0.5)),
+        )
+        return ConfidenceGatedDistillationLoss(
+            hard_loss=hard_loss,
+            hard_weight=float(loss_cfg.get("hard_weight", 0.90)),
+            soft_bce_weight=float(loss_cfg.get("soft_bce_weight", 0.07)),
+            soft_dice_weight=float(loss_cfg.get("soft_dice_weight", 0.03)),
+            temperature=float(loss_cfg.get("temperature", 2.0)),
+            confidence_threshold=float(loss_cfg.get("confidence_threshold", 0.60)),
         )
     raise ValueError(f"Unsupported loss name: {name}")

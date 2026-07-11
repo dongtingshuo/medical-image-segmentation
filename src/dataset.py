@@ -158,12 +158,25 @@ def get_val_transforms(config):
 class SkinLesionDataset(Dataset):
     """Skin lesion image/mask dataset with strict filename-stem matching."""
 
-    def __init__(self, images_dir, masks_dir, transform=None, strict=True, soft_masks_dir=None):
+    def __init__(
+        self,
+        images_dir,
+        masks_dir,
+        transform=None,
+        strict=True,
+        soft_masks_dir=None,
+        missing_soft_mask_value=None,
+    ):
         self.images_dir = Path(images_dir)
         self.masks_dir = Path(masks_dir)
         self.transform = transform
         self.strict = strict
         self.soft_masks_dir = Path(soft_masks_dir) if soft_masks_dir else None
+        self.missing_soft_mask_value = (
+            None if missing_soft_mask_value is None else float(missing_soft_mask_value)
+        )
+        if self.missing_soft_mask_value is not None and not 0.0 <= self.missing_soft_mask_value <= 1.0:
+            raise ValueError("missing_soft_mask_value must be in [0, 1].")
 
         if not self.images_dir.exists():
             raise FileNotFoundError(f"Images directory does not exist: {self.images_dir}")
@@ -223,7 +236,7 @@ class SkinLesionDataset(Dataset):
                 if path.is_file() and path.suffix.lower() in IMAGE_EXTENSIONS
             }
             missing_soft = [image_path.stem for image_path, _ in pairs if image_path.stem not in self.soft_mask_map]
-            if missing_soft:
+            if missing_soft and self.missing_soft_mask_value is None:
                 raise ValueError(f"Missing distillation soft masks for: {missing_soft[:10]}")
 
     def __len__(self):
@@ -248,13 +261,16 @@ class SkinLesionDataset(Dataset):
 
         soft_mask = None
         if self.soft_masks_dir is not None:
-            soft_path = self.soft_mask_map[image_path.stem]
-            soft_mask = cv2.imread(str(soft_path), cv2.IMREAD_UNCHANGED)
-            if soft_mask is None:
-                raise ValueError(f"Failed to read soft mask: {soft_path}")
-            soft_mask = soft_mask.astype(np.float32) / float(np.iinfo(soft_mask.dtype).max)
-            if soft_mask.shape[:2] != mask.shape[:2]:
-                raise ValueError(f"Soft mask size mismatch for `{image_path.stem}`")
+            soft_path = self.soft_mask_map.get(image_path.stem)
+            if soft_path is None:
+                soft_mask = np.full_like(mask, self.missing_soft_mask_value, dtype=np.float32)
+            else:
+                soft_mask = cv2.imread(str(soft_path), cv2.IMREAD_UNCHANGED)
+                if soft_mask is None:
+                    raise ValueError(f"Failed to read soft mask: {soft_path}")
+                soft_mask = soft_mask.astype(np.float32) / float(np.iinfo(soft_mask.dtype).max)
+                if soft_mask.shape[:2] != mask.shape[:2]:
+                    raise ValueError(f"Soft mask size mismatch for `{image_path.stem}`")
 
         if self.transform is not None:
             inputs = {"image": image, "mask": mask}

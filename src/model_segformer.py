@@ -18,14 +18,20 @@ class SegFormerBinary(nn.Module):
 
         if encoder_weights in {None, "none", False}:
             normalized_name = str(encoder_name).lower().replace("_", "-")
-            if normalized_name not in {"nvidia/mit-b2", "mit-b2"}:
+            offline_configs = {
+                "nvidia/mit-b2": [3, 4, 6, 3],
+                "mit-b2": [3, 4, 6, 3],
+                "nvidia/mit-b3": [3, 4, 18, 3],
+                "mit-b3": [3, 4, 18, 3],
+            }
+            if normalized_name not in offline_configs:
                 raise ValueError(
-                    "Offline SegFormer checkpoint reconstruction currently supports only nvidia/mit-b2."
+                    "Offline SegFormer checkpoint reconstruction supports only MiT-B2 and MiT-B3."
                 )
             cfg = SegformerConfig(
                 num_channels=3,
                 num_labels=1,
-                depths=[3, 4, 6, 3],
+                depths=offline_configs[normalized_name],
                 sr_ratios=[8, 4, 2, 1],
                 hidden_sizes=[64, 128, 320, 512],
                 patch_sizes=[7, 3, 3, 3],

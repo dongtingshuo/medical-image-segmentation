@@ -169,11 +169,13 @@ def main():
     val_masks = _require_dir(data_path(config, "val_masks_dir"), "val_masks_dir")
 
     soft_masks_dir = data_path(config, "soft_masks_dir")
+    missing_soft_mask_value = config.get("data", {}).get("missing_soft_mask_value")
     train_dataset = SkinLesionDataset(
         train_images,
         train_masks,
         transform=get_train_transforms(config),
         soft_masks_dir=soft_masks_dir,
+        missing_soft_mask_value=missing_soft_mask_value,
     )
     val_dataset = SkinLesionDataset(val_images, val_masks, transform=get_val_transforms(config))
 
