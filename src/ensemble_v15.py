@@ -11,6 +11,18 @@ import torch.nn.functional as F
 from src.metrics import boundary_f1_score, dice_score, iou_score, precision_score, recall_score, specificity_score
 
 
+def _pad_to_multiple(images, multiple=32):
+    height, width = images.shape[-2:]
+    padded_height = int(np.ceil(height / multiple) * multiple)
+    padded_width = int(np.ceil(width / multiple) * multiple)
+    pad_height = padded_height - height
+    pad_width = padded_width - width
+    if pad_height == 0 and pad_width == 0:
+        return images, (height, width)
+    padded = F.pad(images, (0, pad_width, 0, pad_height), mode="replicate")
+    return padded, (height, width)
+
+
 def tta_probabilities(model, images, mode="none"):
     if mode not in {"none", "flip", "multiscale_flip"}:
         raise ValueError(f"Unsupported TTA mode: {mode}")
@@ -30,7 +42,9 @@ def tta_probabilities(model, images, mode="none"):
             )
         for dimensions in flip_dimensions:
             inputs = scaled if not dimensions else torch.flip(scaled, dims=dimensions)
+            inputs, (scaled_height, scaled_width) = _pad_to_multiple(inputs)
             probability = torch.sigmoid(model(inputs))
+            probability = probability[..., :scaled_height, :scaled_width]
             if dimensions:
                 probability = torch.flip(probability, dims=dimensions)
             if probability.shape[-2:] != (height, width):

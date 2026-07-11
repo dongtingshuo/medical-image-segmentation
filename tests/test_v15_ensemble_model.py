@@ -5,8 +5,22 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from src.ensemble_v15 import average_probability_files, greedy_select_members, macro_metrics
+from src.ensemble_v15 import average_probability_files, greedy_select_members, macro_metrics, tta_probabilities
 from src.model_segformer import SegFormerBinary
+
+
+def test_tta_pads_non_divisible_inputs_and_restores_original_shape():
+    class DivisibleOnlyModel(nn.Module):
+        def forward(self, images):
+            height, width = images.shape[-2:]
+            if height % 32 != 0 or width % 32 != 0:
+                raise RuntimeError(f"Unexpected non-divisible shape: {height}x{width}")
+            return images[:, :1]
+
+    images = torch.randn(2, 3, 336, 335)
+    probabilities = tta_probabilities(DivisibleOnlyModel(), images, mode="multiscale_flip")
+    assert probabilities.shape == (2, 1, 336, 335)
+    assert torch.all((probabilities >= 0.0) & (probabilities <= 1.0))
 
 
 def test_streaming_average_matches_in_memory(tmp_path):
