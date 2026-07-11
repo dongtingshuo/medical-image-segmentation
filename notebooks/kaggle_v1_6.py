@@ -105,6 +105,31 @@ def main():
     ham_mask_root = ham_masks / args.ham_masks_rel if args.ham_masks_rel else ham_masks
     ham_metadata = resolve_file(ham_images, args.ham_metadata_rel, "HAM10000_metadata.csv", "HAM10000 metadata")
     state_input = args.state_input or next((str(path) for path in sorted(input_root.rglob("v1_6_state.zip"))), None)
+    if args.debug:
+        run(
+            [
+                sys.executable,
+                "scripts/debug_v1_6.py",
+                "--output",
+                working_root / "v1_6_debug_report.json",
+                "--isic16-images",
+                isic16_images,
+                "--isic16-masks",
+                isic16_masks,
+                "--ph2-images",
+                ph2_images,
+                "--ph2-masks",
+                ph2_masks,
+                "--ham-images",
+                ham_image_root,
+                "--ham-masks",
+                ham_mask_root,
+                "--ham-metadata",
+                ham_metadata,
+            ],
+            cwd=repository,
+        )
+        return
     command = [
         sys.executable, "scripts/run_v1_6_pipeline.py", "--config", "configs/kaggle_v1_6_debug.yaml" if args.debug else "configs/kaggle_v1_6.yaml",
         "--output-root", working_root / "research_v1_6", "--isic17-root", isic17, "--isic18-root", isic18,
@@ -115,8 +140,6 @@ def main():
         command.extend(["--state-input", state_input])
     if args.allow_state_mismatch:
         command.append("--allow-state-mismatch")
-    if args.debug:
-        command.extend(["--runtime-minutes", "25", "--reserve-minutes", "3"])
     run(command, cwd=repository)
 
 

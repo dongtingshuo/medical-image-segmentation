@@ -25,3 +25,9 @@ def test_v16_kernel_mounts_ham_images_and_reviewed_masks():
     metadata = json.loads(open("kaggle_v1_6_kernel/kernel-metadata.json", encoding="utf-8").read())
     assert "kmader/skin-cancer-mnist-ham10000" in metadata["dataset_sources"]
     assert "tschandl/ham10000-lesion-segmentations" in metadata["dataset_sources"]
+
+
+def test_v16_debug_mode_runs_preflight_instead_of_long_pipeline():
+    source = open("notebooks/kaggle_v1_6.py", encoding="utf-8").read()
+    assert "scripts/debug_v1_6.py" in source
+    assert "v1_6_debug_report.json" in source
