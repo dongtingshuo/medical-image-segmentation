@@ -1,7 +1,9 @@
 import csv
+import shutil
 
 import cv2
 import numpy as np
+import pytest
 
 from src.cross_validation import create_stratified_kfold_splits, validate_folds
 from src.multisource_data import discover_pairs, prepare_multisource_dataset
@@ -69,6 +71,27 @@ def test_recursive_shared_root_discovers_ph2_bmp_pairs(tmp_path):
     assert [(stem, image.name, mask.name) for stem, image, mask in pairs] == [
         ("IMD002", "IMD002.bmp", "IMD002_lesion.bmp")
     ]
+
+
+def test_pair_discovery_collapses_byte_identical_mirror_copies(tmp_path):
+    images, masks = _write_pair(tmp_path / "source", "sample", 80)
+    mirrored_images = tmp_path / "source_mirror/images"
+    mirrored_masks = tmp_path / "source_mirror/masks"
+    mirrored_images.mkdir(parents=True)
+    mirrored_masks.mkdir(parents=True)
+    # Place byte-identical mirror copies under a single recursive root.
+    shutil.copy2(images / "sample.jpg", mirrored_images / "sample.jpg")
+    shutil.copy2(masks / "sample.png", mirrored_masks / "sample.png")
+    pairs = discover_pairs(tmp_path, tmp_path)
+    assert len(pairs) == 1
+
+
+def test_pair_discovery_rejects_conflicting_duplicate_stems(tmp_path):
+    first = _write_pair(tmp_path / "first", "sample", 80)
+    second = _write_pair(tmp_path / "second", "sample", 120)
+    with pytest.raises(ValueError, match="Duplicate normalized image stem"):
+        discover_pairs(tmp_path, tmp_path)
+    assert first and second
 
 
 def test_multisource_always_removes_primary_benchmark_overlap(tmp_path):

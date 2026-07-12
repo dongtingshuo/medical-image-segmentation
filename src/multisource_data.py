@@ -40,16 +40,17 @@ def _looks_like_mask(path, root=None):
 
 def _index_candidates(candidates, label):
     indexed = {}
-    duplicates = []
     for path in candidates:
         stem = normalized_stem(path)
         if stem in indexed:
-            duplicates.append((stem, indexed[stem], path))
-        else:
-            indexed[stem] = path
-    if duplicates:
-        stem, first, second = duplicates[0]
-        raise ValueError(f"Duplicate normalized {label} stem `{stem}`: {first}, {second}")
+            first = indexed[stem]
+            # Some Kaggle mirrors contain byte-identical copies in directories
+            # differing only by case. Keep one deterministic path, but never
+            # hide genuinely conflicting images or masks.
+            if sha256_file(first) != sha256_file(path):
+                raise ValueError(f"Duplicate normalized {label} stem `{stem}`: {first}, {path}")
+            continue
+        indexed[stem] = path
     return indexed
 
 
