@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -12,7 +13,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from src.multisource_data import discover_pairs  # noqa: E402
-from src.v16 import read_ham_metadata  # noqa: E402
+from src.v16 import materialized_stem, read_ham_metadata  # noqa: E402
 
 
 def inspect_pairs(label, images_dir, masks_dir, require_metadata=False):
@@ -23,6 +24,24 @@ def inspect_pairs(label, images_dir, masks_dir, require_metadata=False):
     if image is None or mask is None or image.shape[:2] != mask.shape[:2]:
         raise ValueError(f"{label} first pair has invalid geometry: {image_path}, {mask_path}")
     return {"pairs": len(pairs), "first_stem": stem, "image_shape": list(image.shape), "mask_shape": list(mask.shape)}
+
+
+def inspect_ham_error_stem(images_dir, masks_dir, metadata, stem="HAM_0000008"):
+    matches = [
+        {
+            "stem": pair_stem,
+            "image": str(image_path.relative_to(images_dir)),
+            "mask": str(mask_path.relative_to(masks_dir)),
+        }
+        for pair_stem, image_path, mask_path in discover_pairs(images_dir, masks_dir)
+        if pair_stem == stem
+    ]
+    return {
+        "requested_stem": stem,
+        "discovered_pairs": matches,
+        "metadata_present": stem in metadata,
+        "expected_materialized_stem": materialized_stem("ham10000", stem),
+    }
 
 
 def main():
@@ -43,6 +62,8 @@ def main():
         "ph2": inspect_pairs("ph2", args.ph2_images, args.ph2_masks),
         "ham10000": inspect_pairs("ham10000", args.ham_images, args.ham_masks),
         "ham_metadata_images": len(metadata),
+        "ham_error_stem": inspect_ham_error_stem(args.ham_images, args.ham_masks, metadata),
+        "source_commit": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
         "wandb": "disabled",
     }
     Path(args.output).parent.mkdir(parents=True, exist_ok=True)
