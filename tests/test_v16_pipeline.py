@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 import torch
 
-from scripts.run_v1_6_pipeline import _select_oof_candidate, package_state, restore_state_archive
+from scripts.run_v1_6_pipeline import _materialize_subset, _select_oof_candidate, package_state, restore_state_archive
 from src.dataset import SkinLesionDataset
 from src.losses import build_loss
 from src.v16 import (
@@ -26,7 +26,7 @@ def _records():
                 {
                     "source": source,
                     "original_stem": f"{source}_{index}",
-                    "stem": f"{source}__{index}",
+                    "stem": f"{source}__{source}_{index}",
                     "status": "accepted",
                     "stratum": f"{source}|{index % 3}|{index % 3}",
                     "group_id": f"lesion_{index // 2}" if source == "ham10000" else f"{source}_{index}",
@@ -52,6 +52,28 @@ def test_ham_pretrain_split_keeps_lesion_groups_together():
     assert split["train_ids"] and split["val_ids"]
     assert not set(split["train_ids"]) & set(split["val_ids"])
     assert not train_groups & val_groups
+
+
+def test_ham_pretrain_split_derives_materialized_ids_from_source_metadata():
+    rows = _records()
+    for row in rows:
+        if row["source"] == "ham10000":
+            row["stem"] = row["original_stem"]
+    split = create_ham_pretrain_split(rows, validation_fraction=0.20)
+    assert all(stem.startswith("ham10000__") for stem in split["train_ids"] + split["val_ids"])
+
+
+def test_materialize_subset_resolves_unique_legacy_original_stem(tmp_path):
+    images, masks, output = tmp_path / "images", tmp_path / "masks", tmp_path / "output"
+    images.mkdir()
+    masks.mkdir()
+    image = np.full((8, 8, 3), 127, dtype=np.uint8)
+    mask = np.zeros((8, 8), dtype=np.uint8)
+    cv2.imwrite(str(images / "ham10000__HAM_0000008.jpg"), image)
+    cv2.imwrite(str(masks / "ham10000__HAM_0000008.png"), mask)
+    _materialize_subset(images, masks, {"train": ["HAM_0000008"]}, output)
+    assert (output / "train/images/ham10000__HAM_0000008.jpg").exists()
+    assert (output / "train/masks/ham10000__HAM_0000008.png").exists()
 
 
 def test_manifest_decoration_records_ham_license_and_group(tmp_path):

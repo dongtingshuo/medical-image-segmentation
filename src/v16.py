@@ -90,8 +90,18 @@ def create_ham_pretrain_split(records, validation_fraction=0.10):
     val_groups = {group for group in groups if _stable_bucket(group) < round(float(validation_fraction) * 10)}
     if not val_groups:
         val_groups.add(sorted(groups)[0])
-    train_ids = sorted(row["stem"] for row in accepted if row["group_id"] not in val_groups)
-    val_ids = sorted(row["stem"] for row in accepted if row["group_id"] in val_groups)
+    # Derive the IDs from immutable source metadata instead of trusting a
+    # CSV stem that may have been produced by an older materialization pass.
+    train_ids = sorted(
+        materialized_stem(row["source"], row["original_stem"])
+        for row in accepted
+        if row["group_id"] not in val_groups
+    )
+    val_ids = sorted(
+        materialized_stem(row["source"], row["original_stem"])
+        for row in accepted
+        if row["group_id"] in val_groups
+    )
     if not train_ids or not val_ids:
         raise ValueError("HAM10000 group split must contain both train and validation samples.")
     return {"train_ids": train_ids, "val_ids": val_ids, "validation_groups": sorted(val_groups)}

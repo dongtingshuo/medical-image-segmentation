@@ -6,6 +6,7 @@ import argparse
 import copy
 import hashlib
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -137,17 +138,31 @@ def _materialize_subset(images_dir, masks_dir, stems, output_root):
     images_dir, masks_dir, output_root = Path(images_dir), Path(masks_dir), Path(output_root)
     image_map = {path.stem: path for path in images_dir.iterdir() if path.is_file()}
     mask_map = {path.stem: path for path in masks_dir.iterdir() if path.is_file()}
+
+    def resolve(stem):
+        if stem in image_map and stem in mask_map:
+            return stem
+        # Legacy manifests may still carry the unprefixed original stem. Only
+        # resolve it when exactly one materialized image/mask pair matches.
+        candidates = [
+            candidate
+            for candidate in set(image_map) & set(mask_map)
+            if candidate.partition("__")[2] == stem
+        ]
+        return candidates[0] if len(candidates) == 1 else None
+
     for split, ids in stems.items():
         image_out, mask_out = output_root / split / "images", output_root / split / "masks"
         image_out.mkdir(parents=True, exist_ok=True)
         mask_out.mkdir(parents=True, exist_ok=True)
         for stem in ids:
-            if stem not in image_map or stem not in mask_map:
+            resolved_stem = resolve(stem)
+            if resolved_stem is None:
                 raise ValueError(f"Subset references an unknown sample: {stem}")
-            for source, target in ((image_map[stem], image_out / image_map[stem].name), (mask_map[stem], mask_out / mask_map[stem].name)):
+            for source, target in ((image_map[resolved_stem], image_out / image_map[resolved_stem].name), (mask_map[resolved_stem], mask_out / mask_map[resolved_stem].name)):
                 if not target.exists():
                     try:
-                        target.hardlink_to(source)
+                        os.link(source, target)
                     except OSError:
                         shutil.copy2(source, target)
 
