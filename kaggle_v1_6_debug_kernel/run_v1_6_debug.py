@@ -13,4 +13,4 @@ def run(command, cwd=None):
 
 repository = Path.cwd().resolve() / "medical-image-segmentation"
 run(["git", "clone", "--depth", "1", REPOSITORY_URL, repository])
-run([sys.executable, "notebooks/kaggle_v1_6.py", "--use-existing-repo", "--debug"], cwd=repository)
+run([sys.executable, "notebooks/kaggle_v1_6.py", "--use-existing-repo", "--prepare-only"], cwd=repository)

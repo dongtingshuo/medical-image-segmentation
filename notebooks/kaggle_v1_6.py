@@ -61,6 +61,7 @@ def resolve_file(root, relative, filename, label):
 def main():
     parser = argparse.ArgumentParser(description="Kaggle entrypoint for v1.6 target-domain training.")
     parser.add_argument("--debug", action="store_true")
+    parser.add_argument("--prepare-only", action="store_true")
     parser.add_argument("--use-existing-repo", action="store_true")
     parser.add_argument("--skip-tests", action="store_true")
     parser.add_argument("--input-root", default=os.environ.get("KAGGLE_INPUT_PATH"))
@@ -140,6 +141,8 @@ def main():
         command.extend(["--state-input", state_input])
     if args.allow_state_mismatch:
         command.append("--allow-state-mismatch")
+    if args.prepare_only:
+        command.append("--prepare-only")
     run(command, cwd=repository)
 
 

@@ -6,7 +6,13 @@ import numpy as np
 import pytest
 import torch
 
-from scripts.run_v1_6_pipeline import _materialize_subset, _select_oof_candidate, package_state, restore_state_archive
+from scripts.run_v1_6_pipeline import (
+    _materialize_ham_pretrain,
+    _materialize_subset,
+    _select_oof_candidate,
+    package_state,
+    restore_state_archive,
+)
 from src.dataset import SkinLesionDataset
 from src.losses import build_loss
 from src.v16 import (
@@ -74,6 +80,38 @@ def test_materialize_subset_resolves_unique_legacy_original_stem(tmp_path):
     _materialize_subset(images, masks, {"train": ["HAM_0000008"]}, output)
     assert (output / "train/images/ham10000__HAM_0000008.jpg").exists()
     assert (output / "train/masks/ham10000__HAM_0000008.png").exists()
+
+
+def test_ham_pretraining_materialization_uses_original_source_stem(tmp_path):
+    images, masks, output = tmp_path / "images", tmp_path / "masks", tmp_path / "output"
+    images.mkdir()
+    masks.mkdir()
+    image = np.full((8, 8, 3), 127, dtype=np.uint8)
+    mask = np.zeros((8, 8), dtype=np.uint8)
+    cv2.imwrite(str(images / "ISIC_0000008.jpg"), image)
+    cv2.imwrite(str(masks / "ISIC_0000008.png"), mask)
+    cv2.imwrite(str(images / "ISIC_0000009.jpg"), image)
+    cv2.imwrite(str(masks / "ISIC_0000009.png"), mask)
+    records = [
+        {
+            "source": "ham10000",
+            "original_stem": "ISIC_0000008",
+            "stem": "HAM_0000008",
+            "status": "accepted",
+            "group_id": "lesion_1",
+        },
+        {
+            "source": "ham10000",
+            "original_stem": "ISIC_0000009",
+            "stem": "HAM_0000009",
+            "status": "accepted",
+            "group_id": "lesion_2",
+        },
+    ]
+    counts = _materialize_ham_pretrain(images, masks, records, {"lesion_1"}, output)
+    assert counts == {"train": 1, "val": 1}
+    assert (output / "val/images/ham10000__ISIC_0000008.jpg").exists()
+    assert (output / "train/masks/ham10000__ISIC_0000009.png").exists()
 
 
 def test_manifest_decoration_records_ham_license_and_group(tmp_path):

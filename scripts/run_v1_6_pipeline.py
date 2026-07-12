@@ -25,7 +25,7 @@ if str(ROOT) not in sys.path:
 from src.cross_validation import materialize_fold_directories, read_folds  # noqa: E402
 from src.data_preparation import collect_sample_ids, prepare_external_split, prepare_internal_splits  # noqa: E402
 from src.ensemble_v15 import macro_metrics, postprocess_masks  # noqa: E402
-from src.multisource_data import prepare_multisource_dataset  # noqa: E402
+from src.multisource_data import discover_pairs, prepare_multisource_dataset  # noqa: E402
 from src.oof import restore_probability, write_soft_mask  # noqa: E402
 from src.utils import load_checkpoint_payload, load_config  # noqa: E402
 from src.v16 import (  # noqa: E402
@@ -33,6 +33,7 @@ from src.v16 import (  # noqa: E402
     create_ham_pretrain_split,
     create_target_domain_folds,
     decorate_v16_manifest,
+    materialized_stem,
     write_v16_folds,
 )
 
@@ -167,6 +168,44 @@ def _materialize_subset(images_dir, masks_dir, stems, output_root):
                         shutil.copy2(source, target)
 
 
+def _materialize_ham_pretrain(images_dir, masks_dir, records, validation_groups, output_root):
+    """Build HAM pretraining files from source pairs, not a manifest stem alias."""
+    pair_map = {stem: (image_path, mask_path) for stem, image_path, mask_path in discover_pairs(images_dir, masks_dir)}
+    accepted = [
+        row
+        for row in records
+        if row.get("status") == "accepted" and row.get("source") == "ham10000"
+    ]
+    if not accepted:
+        raise ValueError("No accepted HAM10000 records are available for pretraining.")
+    validation_groups = {str(group) for group in validation_groups}
+    counts = {"train": 0, "val": 0}
+    output_root = Path(output_root)
+    for row in sorted(accepted, key=lambda item: str(item["original_stem"])):
+        original = str(row["original_stem"])
+        pair = pair_map.get(original)
+        if pair is None:
+            raise ValueError(f"Accepted HAM10000 record has no source image/mask pair: {original}")
+        split = "val" if str(row["group_id"]) in validation_groups else "train"
+        image_path, mask_path = pair
+        stem = materialized_stem("ham10000", original)
+        image_target = output_root / split / "images" / f"{stem}{image_path.suffix.lower()}"
+        mask_target = output_root / split / "masks" / f"{stem}{mask_path.suffix.lower()}"
+        image_target.parent.mkdir(parents=True, exist_ok=True)
+        mask_target.parent.mkdir(parents=True, exist_ok=True)
+        for source, target in ((image_path, image_target), (mask_path, mask_target)):
+            if target.exists():
+                continue
+            try:
+                os.link(source, target)
+            except OSError:
+                shutil.copy2(source, target)
+        counts[split] += 1
+    if not counts["train"] or not counts["val"]:
+        raise ValueError("HAM10000 pretraining materialization requires both train and validation samples.")
+    return counts
+
+
 def prepare_data(args, output_root, state):
     output_root = Path(output_root)
     prepared = output_root / "prepared"
@@ -176,6 +215,8 @@ def prepare_data(args, output_root, state):
         merged / "masks",
         prepared / "internal/val/images",
         prepared / "internal/test/images",
+        output_root / "pretrain_data/train/images",
+        output_root / "pretrain_data/val/images",
         output_root / "target_train_data/train/images",
     ]
     was_completed = "data_prepared" in state["completed"]
@@ -210,7 +251,13 @@ def prepare_data(args, output_root, state):
     )
     materialize_fold_directories(merged / "images", merged / "masks", folds, output_root / "fold_data", mode="hardlink")
     pretrain = create_ham_pretrain_split(records)
-    _materialize_subset(merged / "images", merged / "masks", pretrain, output_root / "pretrain_data")
+    ham_counts = _materialize_ham_pretrain(
+        args.ham_images,
+        args.ham_masks,
+        records,
+        pretrain["validation_groups"],
+        output_root / "pretrain_data",
+    )
     target_ids = [row["stem"] for row in records if row.get("status") == "accepted" and row.get("source") != "ham10000"]
     _materialize_subset(
         merged / "images",
@@ -225,6 +272,7 @@ def prepare_data(args, output_root, state):
             "label_quality": "reviewed",
             "license": HAM_LICENSE,
             "role": "pretrain_only",
+            "materialized": ham_counts,
         },
         "isic17": {"accepted": sum(row["source"] == "isic17" for row in accepted), "role": "target_domain"},
         "isic16": {"accepted": sum(row["source"] == "isic16" for row in accepted), "role": "finetune"},
@@ -535,6 +583,7 @@ def main():
     parser.add_argument("--runtime-minutes", type=float, default=570)
     parser.add_argument("--reserve-minutes", type=float, default=30)
     parser.add_argument("--allow-state-mismatch", action="store_true")
+    parser.add_argument("--prepare-only", action="store_true")
     args = parser.parse_args()
 
     output_root = Path(args.output_root).resolve()
@@ -561,7 +610,9 @@ def main():
     try:
         merged = prepare_data(args, output_root, state)
         manifest = merged / "data_manifest.csv"
-        if state["phase"] == "pretrain" and budget.can_start():
+        if args.prepare_only:
+            save_state(state_path, state)
+        elif state["phase"] == "pretrain" and budget.can_start():
             run_pretraining(base, output_root, manifest, budget, state)
         elif state["phase"] == "teachers_unetpp" and budget.can_start():
             run_teachers(base, output_root, manifest, budget, state, "unetpp")
