@@ -65,6 +65,7 @@ def test_manifest_decoration_records_ham_license_and_group(tmp_path):
         writer.writerow({"source": "isic17", "original_stem": "isic_a", "stem": "isic17__isic_a", "status": "accepted"})
     rows = decorate_v16_manifest(manifest, metadata)
     assert rows[0]["label_quality"] == "reviewed"
+    assert rows[0]["stem"] == "ham10000__ham_a"
     assert rows[0]["group_id"] == "lesion_a"
     assert rows[0]["license"] == "CC BY-NC-SA 4.0"
     assert rows[1]["stage"] == "finetune"

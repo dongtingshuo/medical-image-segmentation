@@ -21,6 +21,14 @@ def _stable_bucket(value, modulo=10):
     return int(hashlib.sha256(str(value).encode("utf-8")).hexdigest()[:8], 16) % int(modulo)
 
 
+def materialized_stem(source, original_stem):
+    normalized = "".join(
+        character if character.isalnum() or character in {"-", "_"} else "_"
+        for character in str(original_stem)
+    )
+    return f"{source}__{normalized}"
+
+
 def read_ham_metadata(path):
     rows = {}
     with Path(path).open(newline="", encoding="utf-8") as handle:
@@ -44,6 +52,8 @@ def decorate_v16_manifest(manifest_path, ham_metadata_path):
     for row in rows:
         source = row.get("source", "")
         original = row.get("original_stem", "")
+        if row.get("status") == "accepted":
+            row["stem"] = materialized_stem(source, original)
         if source == "ham10000":
             item = metadata.get(original)
             if item is None and row.get("status") == "accepted":
