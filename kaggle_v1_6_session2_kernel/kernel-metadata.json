@@ -1,0 +1,21 @@
+{
+  "id": "dongtingshuo/medseg-v1-6-session2",
+  "title": "medseg-v1-6-session2",
+  "code_file": "run_v1_6.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": true,
+  "enable_gpu": true,
+  "enable_internet": true,
+  "dataset_sources": [
+    "moon1570/isic-2017-train-val-test-images-and-masks",
+    "tntiphan/isic-2018-task-1",
+    "mahmudulhasantasin/isic-2016-original-dataset",
+    "spacesurfer/ph2-dataset",
+    "kmader/skin-cancer-mnist-ham10000",
+    "tschandl/ham10000-lesion-segmentations"
+  ],
+  "kernel_sources": [
+    "dongtingshuo/medseg-v1-6"
+  ]
+}
