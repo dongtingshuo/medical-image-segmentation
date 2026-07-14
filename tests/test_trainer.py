@@ -7,6 +7,36 @@ from src.losses import get_loss
 from src.model_unet import UNet
 from src.trainer import train_model
 from src.utils import CHECKPOINT_FORMAT_VERSION, load_checkpoint_payload, set_seed
+from train import resolve_model_config
+
+
+def test_resume_model_config_reconstructs_checkpoint_offline():
+    runtime = {
+        "model": {
+            "model_name": "segformer",
+            "encoder_name": "nvidia/mit-b3",
+            "encoder_weights": "imagenet",
+            "in_channels": 3,
+            "out_channels": 1,
+        }
+    }
+    checkpoint = {
+        "config": {
+            "model": {
+                "model_name": "segformer",
+                "encoder_name": "nvidia/mit-b3",
+                "encoder_weights": "imagenet",
+                "in_channels": 3,
+                "out_channels": 1,
+            }
+        }
+    }
+
+    resolved = resolve_model_config(runtime, resume_checkpoint=checkpoint)
+
+    assert resolved["model_name"] == "segformer"
+    assert resolved["encoder_name"] == "nvidia/mit-b3"
+    assert resolved["encoder_weights"] is None
 
 
 def test_train_model_writes_versioned_best_checkpoint_and_unambiguous_metrics(tmp_path):

@@ -10,9 +10,11 @@ from src.losses import build_loss
 from src.model_factory import get_model
 from src.trainer import train_model
 from src.utils import (
+    checkpoint_model_config,
     create_dirs,
     data_path,
     get_device,
+    load_checkpoint_payload,
     load_config,
     make_torch_generator,
     seed_worker,
@@ -25,6 +27,17 @@ def _require_dir(path, label):
     if not path.exists():
         raise FileNotFoundError(f"{label} does not exist: {path}. Please update the YAML config.")
     return path
+
+
+def resolve_model_config(config, resume_checkpoint=None):
+    runtime_config = dict(config.get("model", {}))
+    saved_config = checkpoint_model_config(resume_checkpoint or {})
+    model_config = saved_config or runtime_config
+    if resume_checkpoint is not None:
+        # A resumable checkpoint already contains the encoder parameters.
+        # Reconstruct the architecture locally before loading those weights.
+        model_config["encoder_weights"] = None
+    return model_config
 
 
 def build_optimizer(model, config):
@@ -201,7 +214,15 @@ def main():
         generator=make_torch_generator(seed + 1),
     )
 
-    model_cfg = dict(config.get("model", {}))
+    resume_path = args.resume or training.get("resume_from")
+    resume_checkpoint = None
+    if resume_path:
+        resume_path = Path(resume_path)
+        if not resume_path.exists():
+            raise FileNotFoundError(f"Resume checkpoint does not exist: {resume_path}")
+        resume_checkpoint = load_checkpoint_payload(resume_path, device="cpu")
+
+    model_cfg = resolve_model_config(config, resume_checkpoint=resume_checkpoint)
     model_name = model_cfg.pop("model_name", model_cfg.pop("name", "unet"))
     if "encoder_name" not in model_cfg and model_cfg.get("encoder"):
         model_cfg["encoder_name"] = model_cfg["encoder"]
@@ -217,11 +238,6 @@ def main():
     print(f"Model: {model_name}")
     print(f"Deterministic mode: {deterministic}")
     print(f"Train samples: {len(train_dataset)} | Val samples: {len(val_dataset)}")
-    resume_path = args.resume or training.get("resume_from")
-    if resume_path:
-        resume_path = Path(resume_path)
-        if not resume_path.exists():
-            raise FileNotFoundError(f"Resume checkpoint does not exist: {resume_path}")
     train_model(model, train_loader, val_loader, criterion, optimizer, scheduler, device, config, resume_path=resume_path)
 
 
