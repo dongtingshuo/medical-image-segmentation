@@ -66,6 +66,7 @@ def install_p100_compatible_torch():
             "pip",
             "install",
             "-q",
+            "--no-cache-dir",
             "--upgrade",
             "--force-reinstall",
             "--index-url",

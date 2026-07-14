@@ -89,7 +89,10 @@ def main():
         if repository.exists():
             shutil.rmtree(repository)
         run(["git", "clone", "--depth", "1", REPOSITORY_URL, repository])
-    run([sys.executable, "-m", "pip", "install", "-q", "-r", "requirements-kaggle.txt"], cwd=repository)
+    run(
+        [sys.executable, "-m", "pip", "install", "-q", "--no-cache-dir", "-r", "requirements-kaggle.txt"],
+        cwd=repository,
+    )
     # W&B is intentionally disabled for v1.6: no Secret lookup, import, sync, or run initialization.
     run([sys.executable, "scripts/kaggle_prepare_gpu.py", "--install-if-needed"], cwd=repository)
     if not args.skip_tests:

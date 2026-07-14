@@ -43,6 +43,18 @@ ARCHITECTURES = {
 }
 MIXED_PROPORTIONS = {"isic17": 0.70, "isic16": 0.20, "ph2": 0.10}
 ADAPT_PROPORTIONS = {"isic17": 0.85, "isic16": 0.10, "ph2": 0.05}
+RECOMPUTABLE_STATE_PATHS = (
+    "prepared",
+    "merged_train/images",
+    "merged_train/masks",
+    "fold_data",
+    "pretrain_data",
+    "target_train_data",
+    "validation_probability_cache",
+    "streaming",
+    "oof/candidates",
+)
+STATE_PACKAGING_HEADROOM_BYTES = 256 * 1024 * 1024
 
 
 def sha256_file(path):
@@ -96,11 +108,72 @@ def restore_state_archive(archive, output_root):
         handle.extractall(output_root)
 
 
+def _remove_recomputable_paths(output_root, relative_paths):
+    output_root = Path(output_root)
+    free_before = shutil.disk_usage(output_root.parent).free
+    for relative in relative_paths:
+        path = output_root / relative
+        if path.is_dir() and not path.is_symlink():
+            shutil.rmtree(path, ignore_errors=True)
+        else:
+            path.unlink(missing_ok=True)
+    free_after = shutil.disk_usage(output_root.parent).free
+    released = max(0, free_after - free_before)
+    if released:
+        print(f"Released {released / (1024 ** 3):.2f} GiB of recomputable runtime data.", flush=True)
+
+
+def prune_runtime_data_for_phase(output_root, phase):
+    if phase not in {"teachers_unetpp", "teachers_segformer"}:
+        return
+    # Teacher training only needs the target-domain fold hardlinks and the
+    # manifest. HAM pretraining and benchmark evaluation data are rebuilt in
+    # later sessions, so retaining them here only consumes checkpoint space.
+    _remove_recomputable_paths(
+        output_root,
+        (
+            "prepared",
+            "merged_train/images",
+            "merged_train/masks",
+            "pretrain_data",
+            "target_train_data",
+        ),
+    )
+
+
+def _should_prune_checkpoint(relative, completed):
+    if len(relative.parts) != 4 or relative.parts[0] != "models" or relative.parts[2] != "checkpoints":
+        return False
+    task_name = relative.parts[1]
+    if task_name.startswith("teacher-"):
+        return relative.name == "last_model.pth" and f"model:{task_name}:adapt" in completed
+    if task_name.startswith("student-"):
+        return relative.name == "best_model.pth" and f"model:{task_name}:student" in completed
+    return False
+
+
+def prune_redundant_checkpoints(output_root):
+    output_root = Path(output_root)
+    state_path = output_root / "pipeline_state.json"
+    state = json.loads(state_path.read_text(encoding="utf-8")) if state_path.exists() else {}
+    completed = set(state.get("completed", []))
+    for path in sorted((output_root / "models").glob("*/checkpoints/*")):
+        if path.is_file() and _should_prune_checkpoint(path.relative_to(output_root), completed):
+            path.unlink(missing_ok=True)
+
+
 def package_state(output_root):
     output_root = Path(output_root)
+    _remove_recomputable_paths(output_root, RECOMPUTABLE_STATE_PATHS)
+    prune_redundant_checkpoints(output_root)
     archive = output_root.parent / "v1_6_state.zip"
+    temporary_archive = archive.with_name(f".{archive.name}.tmp")
+    checksum = archive.with_suffix(archive.suffix + ".sha256")
+    temporary_checksum = checksum.with_name(f".{checksum.name}.tmp")
     archive.unlink(missing_ok=True)
-    archive.with_suffix(".zip.sha256").unlink(missing_ok=True)
+    temporary_archive.unlink(missing_ok=True)
+    checksum.unlink(missing_ok=True)
+    temporary_checksum.unlink(missing_ok=True)
     excluded = {
         "prepared",
         "merged_train",
@@ -112,13 +185,36 @@ def package_state(output_root):
         "release",
         "candidates",
     }
-    with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=3) as handle:
-        for path in sorted(output_root.rglob("*")):
-            if not path.is_file() or any(part in excluded for part in path.relative_to(output_root).parts):
-                continue
-            handle.write(path, path.relative_to(output_root))
-    digest = sha256_file(archive)
-    archive.with_suffix(".zip.sha256").write_text(f"{digest}  {archive.name}\n", encoding="utf-8")
+    paths = [
+        path
+        for path in sorted(output_root.rglob("*"))
+        if path.is_file() and not any(part in excluded for part in path.relative_to(output_root).parts)
+    ]
+    unpacked_bytes = sum(path.stat().st_size for path in paths)
+    free_bytes = shutil.disk_usage(output_root.parent).free
+    required_bytes = unpacked_bytes + STATE_PACKAGING_HEADROOM_BYTES
+    print(
+        f"State packaging input: {unpacked_bytes / (1024 ** 3):.2f} GiB; "
+        f"free disk: {free_bytes / (1024 ** 3):.2f} GiB.",
+        flush=True,
+    )
+    if free_bytes < required_bytes:
+        raise OSError(
+            "Insufficient disk for atomic state packaging after cleanup: "
+            f"required={required_bytes}, free={free_bytes}"
+        )
+    try:
+        with zipfile.ZipFile(temporary_archive, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=3) as handle:
+            for path in paths:
+                handle.write(path, path.relative_to(output_root))
+        os.replace(temporary_archive, archive)
+        digest = sha256_file(archive)
+        temporary_checksum.write_text(f"{digest}  {archive.name}\n", encoding="utf-8")
+        os.replace(temporary_checksum, checksum)
+    except BaseException:
+        temporary_archive.unlink(missing_ok=True)
+        temporary_checksum.unlink(missing_ok=True)
+        raise
     print(f"State package: {archive} ({digest})", flush=True)
     return archive
 
@@ -610,6 +706,7 @@ def main():
     try:
         merged = prepare_data(args, output_root, state)
         manifest = merged / "data_manifest.csv"
+        prune_runtime_data_for_phase(output_root, state.get("phase"))
         if args.prepare_only:
             save_state(state_path, state)
         elif state["phase"] == "pretrain" and budget.can_start():

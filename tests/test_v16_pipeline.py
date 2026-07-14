@@ -187,6 +187,42 @@ def test_v16_state_archive_has_versioned_name_and_checksum(tmp_path):
     assert (restored / "models/model.pth").exists()
     assert not (restored / "prepared/raw.jpg").exists()
     assert not (restored / "target_train_data/train/images/raw.jpg").exists()
+    assert not (root / "prepared").exists()
+    assert not (root / "target_train_data").exists()
+
+
+def test_v16_state_package_prunes_only_non_resumable_completed_checkpoints(tmp_path):
+    root = tmp_path / "research_v1_6"
+    state = {
+        "version": "1.6",
+        "phase": "teachers_unetpp",
+        "completed": ["model:teacher-unetpp-fold0:adapt", "model:student-unetpp:student"],
+    }
+    root.mkdir()
+    (root / "pipeline_state.json").write_text(json.dumps(state), encoding="utf-8")
+    for task in ("teacher-unetpp-fold0", "teacher-unetpp-fold1", "student-unetpp"):
+        checkpoint_dir = root / "models" / task / "checkpoints"
+        checkpoint_dir.mkdir(parents=True)
+        (checkpoint_dir / "best_model.pth").write_bytes(f"best:{task}".encode())
+        (checkpoint_dir / "last_model.pth").write_bytes(f"last:{task}".encode())
+
+    archive = package_state(root)
+    restored = tmp_path / "restored"
+    restore_state_archive(archive, restored)
+
+    assert (restored / "models/teacher-unetpp-fold0/checkpoints/best_model.pth").exists()
+    assert not (restored / "models/teacher-unetpp-fold0/checkpoints/last_model.pth").exists()
+    assert (restored / "models/teacher-unetpp-fold1/checkpoints/best_model.pth").exists()
+    assert (restored / "models/teacher-unetpp-fold1/checkpoints/last_model.pth").exists()
+    assert not (restored / "models/student-unetpp/checkpoints/best_model.pth").exists()
+    assert (restored / "models/student-unetpp/checkpoints/last_model.pth").exists()
+
+
+def test_v16_kaggle_installs_do_not_retain_pip_cache():
+    notebook = open("notebooks/kaggle_v1_6.py", encoding="utf-8").read()
+    gpu_setup = open("scripts/kaggle_prepare_gpu.py", encoding="utf-8").read()
+    assert '"--no-cache-dir"' in notebook
+    assert '"--no-cache-dir"' in gpu_setup
 
 
 def test_manifest_rejects_accepted_ham_sample_without_metadata(tmp_path):
