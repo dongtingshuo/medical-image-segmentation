@@ -162,6 +162,32 @@ def prune_redundant_checkpoints(output_root):
             path.unlink(missing_ok=True)
 
 
+def reset_teacher_training(output_root, state):
+    output_root = Path(output_root)
+    models_root = output_root / "models"
+    for pattern in ("teacher-*", "student-*"):
+        for path in models_root.glob(pattern):
+            shutil.rmtree(path, ignore_errors=True)
+    for relative in ("oof", "selection", "final", "release"):
+        shutil.rmtree(output_root / relative, ignore_errors=True)
+    for relative in ("members.json", "medical-segmentation-v1.6-release.zip"):
+        (output_root / relative).unlink(missing_ok=True)
+    state["completed"] = [
+        key
+        for key in state.get("completed", [])
+        if not key.startswith("model:teacher-")
+        and not key.startswith("model:student-")
+        and key not in {"oof_generated", "final_evaluation"}
+    ]
+    state["failed"] = {
+        key: value
+        for key, value in state.get("failed", {}).items()
+        if not key.startswith("teacher-") and not key.startswith("student-")
+    }
+    state["phase"] = "teachers_unetpp"
+    state["teacher_restart_reason"] = "reset_seed_epoch_and_optimizer_state"
+
+
 def package_state(output_root):
     output_root = Path(output_root)
     _remove_recomputable_paths(output_root, RECOMPUTABLE_STATE_PATHS)
@@ -418,12 +444,14 @@ def train_stage(name, architecture, base, output_root, train_dirs, val_dirs, man
     if not budget.can_start():
         return False
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
+    seeded_from_checkpoint = False
     if seed_checkpoint and not last_path.exists():
-        seed_last, seed_best = (Path(item) for item in seed_checkpoint)
-        if not seed_last.exists() or not seed_best.exists():
+        _seed_last, seed_best = (Path(item) for item in seed_checkpoint)
+        if not _seed_last.exists() or not seed_best.exists():
             raise FileNotFoundError(f"Missing pretraining seed for {name}")
-        shutil.copy2(seed_last, last_path)
+        shutil.copy2(seed_best, last_path)
         shutil.copy2(seed_best, best_path)
+        seeded_from_checkpoint = True
     config = architecture_config(base, architecture)
     config["experiment_name"] = name
     config["data"].update({
@@ -434,6 +462,8 @@ def train_stage(name, architecture, base, output_root, train_dirs, val_dirs, man
     if soft_masks:
         config["data"].update({"soft_masks_dir": str(soft_masks), "missing_soft_mask_value": 0.5})
     config["training"].update({"epochs": int(epochs), "max_runtime_minutes": max(4.0, budget.remaining_minutes()), "safe_stop_minutes": 2.0})
+    if seeded_from_checkpoint:
+        config["training"].update({"resume_optimizer": False, "resume_training_state": False})
     if fixed_epochs:
         config["training"]["early_stopping"]["enabled"] = False
     config["paths"] = {"output_dir": str(task_root / "outputs"), "checkpoint_dir": str(checkpoint_dir)}
@@ -679,6 +709,7 @@ def main():
     parser.add_argument("--runtime-minutes", type=float, default=570)
     parser.add_argument("--reserve-minutes", type=float, default=30)
     parser.add_argument("--allow-state-mismatch", action="store_true")
+    parser.add_argument("--reset-teachers", action="store_true")
     parser.add_argument("--prepare-only", action="store_true")
     args = parser.parse_args()
 
@@ -702,6 +733,8 @@ def main():
             "session": int(state.get("session", 0)) + 1,
         }
     )
+    if args.reset_teachers:
+        reset_teacher_training(output_root, state)
     budget = TimeBudget(args.runtime_minutes, args.reserve_minutes)
     try:
         merged = prepare_data(args, output_root, state)

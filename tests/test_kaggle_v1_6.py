@@ -31,3 +31,9 @@ def test_v16_debug_mode_runs_preflight_instead_of_long_pipeline():
     source = open("notebooks/kaggle_v1_6.py", encoding="utf-8").read()
     assert "scripts/debug_v1_6.py" in source
     assert "v1_6_debug_report.json" in source
+
+
+def test_v16_wrapper_forwards_explicit_teacher_reset():
+    source = open("notebooks/kaggle_v1_6.py", encoding="utf-8").read()
+    assert 'parser.add_argument("--reset-teachers"' in source
+    assert 'command.append("--reset-teachers")' in source

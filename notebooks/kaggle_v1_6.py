@@ -68,6 +68,7 @@ def main():
     parser.add_argument("--working-root", default=os.environ.get("KAGGLE_WORKING_PATH"))
     parser.add_argument("--state-input")
     parser.add_argument("--allow-state-mismatch", action="store_true")
+    parser.add_argument("--reset-teachers", action="store_true")
     parser.add_argument("--isic17-dataset", default="moon1570/isic-2017-train-val-test-images-and-masks")
     parser.add_argument("--isic18-dataset", default="tntiphan/isic-2018-task-1")
     parser.add_argument("--isic16-dataset", default="mahmudulhasantasin/isic-2016-original-dataset")
@@ -144,6 +145,8 @@ def main():
         command.extend(["--state-input", state_input])
     if args.allow_state_mismatch:
         command.append("--allow-state-mismatch")
+    if args.reset_teachers:
+        command.append("--reset-teachers")
     if args.prepare_only:
         command.append("--prepare-only")
     run(command, cwd=repository)

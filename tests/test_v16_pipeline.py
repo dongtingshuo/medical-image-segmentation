@@ -5,12 +5,15 @@ import cv2
 import numpy as np
 import pytest
 import torch
+import yaml
 
+import scripts.run_v1_6_pipeline as v16_pipeline
 from scripts.run_v1_6_pipeline import (
     _materialize_ham_pretrain,
     _materialize_subset,
     _select_oof_candidate,
     package_state,
+    reset_teacher_training,
     restore_state_archive,
 )
 from src.dataset import SkinLesionDataset
@@ -223,6 +226,101 @@ def test_v16_kaggle_installs_do_not_retain_pip_cache():
     gpu_setup = open("scripts/kaggle_prepare_gpu.py", encoding="utf-8").read()
     assert '"--no-cache-dir"' in notebook
     assert '"--no-cache-dir"' in gpu_setup
+
+
+def test_v16_teacher_reset_preserves_pretraining_and_removes_downstream_state(tmp_path):
+    root = tmp_path / "research_v1_6"
+    for name in ("pretrain-unetpp", "teacher-unetpp-fold0", "teacher-segformer-fold0", "student-unetpp"):
+        path = root / "models" / name
+        path.mkdir(parents=True)
+        (path / "artifact.bin").write_bytes(b"state")
+    for name in ("oof", "selection", "final", "release"):
+        (root / name).mkdir(parents=True)
+    state = {
+        "phase": "students",
+        "completed": [
+            "data_prepared",
+            "model:pretrain-unetpp:pretrain",
+            "model:teacher-unetpp-fold0:mixed",
+            "model:teacher-unetpp-fold0:adapt",
+            "model:student-unetpp:student",
+            "oof_generated",
+        ],
+        "failed": {"teacher-segformer-fold0:mixed": "network", "unrelated": "keep"},
+    }
+
+    reset_teacher_training(root, state)
+
+    assert (root / "models/pretrain-unetpp").exists()
+    assert not (root / "models/teacher-unetpp-fold0").exists()
+    assert not (root / "models/teacher-segformer-fold0").exists()
+    assert not (root / "models/student-unetpp").exists()
+    assert not (root / "oof").exists()
+    assert state["phase"] == "teachers_unetpp"
+    assert state["completed"] == ["data_prepared", "model:pretrain-unetpp:pretrain"]
+    assert state["failed"] == {"unrelated": "keep"}
+    assert state["teacher_restart_reason"] == "reset_seed_epoch_and_optimizer_state"
+
+
+def test_v16_teacher_seed_resets_epoch_and_optimizer_state(monkeypatch, tmp_path):
+    seed_dir = tmp_path / "pretrain/checkpoints"
+    seed_dir.mkdir(parents=True)
+    seed_last = seed_dir / "last_model.pth"
+    seed_best = seed_dir / "best_model.pth"
+    seed_last.write_bytes(b"last")
+    seed_best.write_bytes(b"best")
+    captured = {}
+
+    def fake_run(command):
+        captured["command"] = [str(part) for part in command]
+        runtime_config = yaml.safe_load(
+            (tmp_path / "models/teacher-unetpp-fold0/runtime_config.yaml").read_text(encoding="utf-8")
+        )
+        captured["training"] = runtime_config["training"]
+
+    class Budget:
+        @staticmethod
+        def can_start():
+            return True
+
+        @staticmethod
+        def remaining_minutes():
+            return 100.0
+
+    monkeypatch.setattr(v16_pipeline, "run", fake_run)
+    monkeypatch.setattr(v16_pipeline, "_finished", lambda _path, _epochs: True)
+    base = {
+        "data": {},
+        "training": {
+            "batch_size": 1,
+            "gradient_accumulation_steps": 1,
+            "resume_optimizer": True,
+            "resume_training_state": True,
+            "early_stopping": {"enabled": True},
+        },
+    }
+    state = {"completed": [], "failed": {}}
+
+    completed = v16_pipeline.train_stage(
+        "teacher-unetpp-fold0",
+        "unetpp",
+        base,
+        tmp_path,
+        (tmp_path / "train/images", tmp_path / "train/masks"),
+        (tmp_path / "val/images", tmp_path / "val/masks"),
+        tmp_path / "manifest.csv",
+        Budget(),
+        state,
+        18,
+        "mixed",
+        seed_checkpoint=(seed_last, seed_best),
+    )
+
+    assert completed
+    assert captured["training"]["resume_optimizer"] is False
+    assert captured["training"]["resume_training_state"] is False
+    assert "--resume" in captured["command"]
+    assert (tmp_path / "models/teacher-unetpp-fold0/checkpoints/last_model.pth").read_bytes() == b"best"
 
 
 def test_manifest_rejects_accepted_ham_sample_without_metadata(tmp_path):
