@@ -3,7 +3,7 @@ import sys
 from pathlib import Path
 
 REPOSITORY_URL = "https://github.com/dongtingshuo/medical-image-segmentation.git"
-STATE_SOURCE_COMMIT = "9a4ebd50c1fd602f7b339316fba79acc29734d53"
+STATE_SOURCE_COMMIT = "8891baf671fca1e79886097b53dbebd970b1062c"
 
 
 def run(command, cwd=None):
@@ -22,6 +22,7 @@ run(
         sys.executable,
         "notebooks/kaggle_v1_6.py",
         "--use-existing-repo",
+        "--allow-state-mismatch",
     ],
     cwd=repository,
 )
