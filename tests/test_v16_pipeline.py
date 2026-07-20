@@ -1,5 +1,7 @@
 import csv
 import json
+from pathlib import Path
+from types import SimpleNamespace
 
 import cv2
 import numpy as np
@@ -11,8 +13,10 @@ import scripts.run_v1_6_pipeline as v16_pipeline
 from scripts.run_v1_6_pipeline import (
     _materialize_ham_pretrain,
     _materialize_subset,
+    _prune_oof_candidate_payload,
     _select_oof_candidate,
     package_state,
+    prune_runtime_data_for_oof,
     reset_teacher_training,
     restore_state_archive,
 )
@@ -192,6 +196,89 @@ def test_v16_state_archive_has_versioned_name_and_checksum(tmp_path):
     assert not (restored / "target_train_data/train/images/raw.jpg").exists()
     assert not (root / "prepared").exists()
     assert not (root / "target_train_data").exists()
+
+
+def test_v16_oof_cleanup_preserves_only_runtime_data_needed_by_students(monkeypatch, tmp_path):
+    root = tmp_path / "research_v1_6"
+    removed = (
+        "prepared/raw.jpg",
+        "fold_data/fold_0/train/images/raw.jpg",
+        "pretrain_data/train/images/raw.jpg",
+        "validation_probability_cache/raw.npy",
+        "streaming/raw.npy",
+    )
+    kept = (
+        "merged_train/images/raw.jpg",
+        "target_train_data/train/images/raw.jpg",
+        "pretrain_data/val/images/raw.jpg",
+    )
+    for relative in removed + kept:
+        path = root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"data")
+    monkeypatch.setattr(
+        v16_pipeline.shutil,
+        "disk_usage",
+        lambda _path: SimpleNamespace(free=5 * 1024**3),
+    )
+
+    prune_runtime_data_for_oof(root)
+
+    assert all(not (root / relative).exists() for relative in removed)
+    assert all((root / relative).exists() for relative in kept)
+
+
+def test_v16_oof_candidate_pruning_keeps_selection_metadata(tmp_path):
+    candidate = tmp_path / "candidate"
+    (candidate / "soft_masks").mkdir(parents=True)
+    (candidate / "family_selection.json").write_text("{}", encoding="utf-8")
+    (candidate / "unetpp_crossfit.npy").write_bytes(b"probabilities")
+    (candidate / "segformer_crossfit.npy").write_bytes(b"probabilities")
+    (candidate / "targets_384.npy").write_bytes(b"targets")
+    (candidate / "soft_masks/sample.png").write_bytes(b"mask")
+
+    _prune_oof_candidate_payload(candidate)
+
+    assert (candidate / "family_selection.json").exists()
+    assert not (candidate / "unetpp_crossfit.npy").exists()
+    assert not (candidate / "segformer_crossfit.npy").exists()
+    assert not (candidate / "targets_384.npy").exists()
+    assert not (candidate / "soft_masks").exists()
+
+
+def test_v16_oof_generation_keeps_only_current_selected_candidate(monkeypatch, tmp_path):
+    root = tmp_path / "research_v1_6"
+    metrics = {
+        "none": {"dice": 0.8000, "boundary_f1": 0.5000},
+        "flip": {"dice": 0.8020, "boundary_f1": 0.5000},
+        "multiscale_flip": {"dice": 0.8005, "boundary_f1": 0.6000},
+    }
+
+    def fake_run(command):
+        candidate = Path(command[command.index("--output-root") + 1])
+        mode = command[command.index("--tta") + 1]
+        candidate.mkdir(parents=True, exist_ok=True)
+        for architecture in ("unetpp", "segformer"):
+            np.save(candidate / f"{architecture}_crossfit.npy", np.zeros((1, 1, 2, 2), dtype=np.float16))
+        np.save(candidate / "targets_384.npy", np.zeros((1, 1, 2, 2), dtype=np.uint8))
+        (candidate / "family_selection.json").write_text(
+            json.dumps({"oof_metrics": metrics[mode]}),
+            encoding="utf-8",
+        )
+
+    def fake_select(candidates, _output_root):
+        assert not (candidates["none"] / "unetpp_crossfit.npy").exists()
+        assert (candidates["flip"] / "unetpp_crossfit.npy").exists()
+        assert not (candidates["multiscale_flip"] / "unetpp_crossfit.npy").exists()
+
+    monkeypatch.setattr(v16_pipeline, "prune_runtime_data_for_oof", lambda _root: None)
+    monkeypatch.setattr(v16_pipeline, "run", fake_run)
+    monkeypatch.setattr(v16_pipeline, "_select_oof_candidate", fake_select)
+    state = {"completed": []}
+
+    assert v16_pipeline.run_oof(root, state)
+    assert state["completed"] == ["oof_generated"]
+    assert not (root / "oof/candidates").exists()
 
 
 def test_v16_state_package_prunes_only_non_resumable_completed_checkpoints(tmp_path):

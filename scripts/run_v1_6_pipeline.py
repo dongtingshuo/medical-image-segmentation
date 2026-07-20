@@ -54,6 +54,14 @@ RECOMPUTABLE_STATE_PATHS = (
     "streaming",
     "oof/candidates",
 )
+OOF_RUNTIME_CLEANUP_PATHS = (
+    "prepared",
+    "fold_data",
+    "pretrain_data/train",
+    "validation_probability_cache",
+    "streaming",
+)
+OOF_MIN_FREE_BYTES = 4 * 1024 * 1024 * 1024
 STATE_PACKAGING_HEADROOM_BYTES = 256 * 1024 * 1024
 
 
@@ -139,6 +147,26 @@ def prune_runtime_data_for_phase(output_root, phase):
             "target_train_data",
         ),
     )
+
+
+def prune_runtime_data_for_oof(output_root):
+    output_root = Path(output_root)
+    _remove_recomputable_paths(output_root, OOF_RUNTIME_CLEANUP_PATHS)
+    free_bytes = shutil.disk_usage(output_root.parent).free
+    print(f"OOF free disk after cleanup: {free_bytes / (1024 ** 3):.2f} GiB.", flush=True)
+    if free_bytes < OOF_MIN_FREE_BYTES:
+        raise OSError(
+            "Insufficient disk for streaming OOF generation after cleanup: "
+            f"required={OOF_MIN_FREE_BYTES}, free={free_bytes}"
+        )
+
+
+def _prune_oof_candidate_payload(candidate_root):
+    candidate_root = Path(candidate_root)
+    for path in candidate_root.glob("*_crossfit.npy"):
+        path.unlink(missing_ok=True)
+    (candidate_root / "targets_384.npy").unlink(missing_ok=True)
+    shutil.rmtree(candidate_root / "soft_masks", ignore_errors=True)
 
 
 def _should_prune_checkpoint(relative, completed):
@@ -564,7 +592,10 @@ def run_oof(output_root, state):
     if "oof_generated" in state["completed"]:
         return True
     output_root = Path(output_root)
+    prune_runtime_data_for_oof(output_root)
     candidate_roots = {}
+    baseline_metrics = None
+    selected_mode = None
     for mode in ("none", "flip", "multiscale_flip"):
         candidate_root = output_root / "oof/candidates" / mode
         candidate_roots[mode] = candidate_root
@@ -579,7 +610,23 @@ def run_oof(output_root, state):
                 checkpoint = root / "checkpoints/best_model.pth"
                 command.extend(["--member", f"{architecture}:{fold}:{root / 'runtime_config.yaml'}:{checkpoint}"])
         run(command)
+        decision = json.loads((candidate_root / "family_selection.json").read_text(encoding="utf-8"))
+        if mode == "none":
+            baseline_metrics = decision["oof_metrics"]
+            selected_mode = mode
+            continue
+        metrics = decision["oof_metrics"]
+        accepted = (
+            metrics["dice"] >= baseline_metrics["dice"] + 0.001
+            and metrics["boundary_f1"] >= baseline_metrics["boundary_f1"]
+        )
+        if accepted:
+            _prune_oof_candidate_payload(candidate_roots[selected_mode])
+            selected_mode = mode
+        else:
+            _prune_oof_candidate_payload(candidate_root)
     _select_oof_candidate(candidate_roots, output_root)
+    shutil.rmtree(output_root / "oof/candidates", ignore_errors=True)
     state["completed"].append("oof_generated")
     return True
 

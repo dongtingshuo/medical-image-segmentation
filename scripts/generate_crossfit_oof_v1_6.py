@@ -13,7 +13,7 @@ if str(ROOT) not in sys.path:
 
 from scripts.generate_oof_targets import parse_member, predict_member  # noqa: E402
 from src.cross_validation import read_folds  # noqa: E402
-from src.oof import resize_target, restore_probability, write_soft_mask  # noqa: E402
+from src.oof import resize_target  # noqa: E402
 from src.utils import get_device  # noqa: E402
 from src.v16 import select_crossfit_family_weights  # noqa: E402
 
@@ -48,7 +48,6 @@ def main():
     output_root = Path(args.output_root)
     output_root.mkdir(parents=True, exist_ok=True)
     manifest = _load_manifest(args.manifest)
-    image_paths = {path.stem: path for path in Path(args.images_dir).iterdir() if path.is_file()}
     mask_paths = {path.stem: path for path in Path(args.masks_dir).iterdir() if path.is_file()}
     device = get_device(args.device)
     by_architecture = {architecture: {} for architecture in architectures}
@@ -75,19 +74,10 @@ def main():
     }
     for architecture, values in raw_probabilities.items():
         np.save(output_root / f"{architecture}_crossfit.npy", values.astype(np.float16))
-    # Store soft masks at original image geometry for student augmentation synchronization.
-    soft_dir = output_root / "soft_masks"
-    for stem in stems:
-        image = cv2.imread(str(image_paths[stem]), cv2.IMREAD_COLOR)
-        averaged = 0.5 * (by_architecture["unetpp"][stem] + by_architecture["segformer"][stem])
-        write_soft_mask(
-            soft_dir / f"{stem}.png",
-            restore_probability(averaged, image.shape[:2], resize_mode=resize_mode),
-        )
-    # Metrics require common geometry, so resize each prediction/target to the base 384 square used by all teachers.
+    # Candidate soft masks are intentionally not written here. The pipeline
+    # materializes only the selected candidate at original image geometry.
     model_targets = []
     for stem in stems:
-        image = cv2.imread(str(image_paths[stem]), cv2.IMREAD_COLOR)
         raw_mask = cv2.imread(str(mask_paths[stem]), cv2.IMREAD_GRAYSCALE)
         model_targets.append(resize_target((raw_mask > 127).astype(np.float32), (384, 384), resize_mode=resize_mode))
     model_targets = np.asarray(model_targets, dtype=np.float32)[:, None]
