@@ -785,11 +785,11 @@ def run_selection_and_evaluation(output_root, state):
     decision = selection / "locked_decision.json"
     if not decision.exists():
         run([sys.executable, "scripts/select_ensemble_v1_6.py", "--members-json", members, "--family-selection", output_root / "oof/family_selection.json", "--images-dir", output_root / "prepared/internal/val/images", "--masks-dir", output_root / "prepared/internal/val/masks", "--output-root", selection])
-    test_manifest = output_root / "prepared/internal/test_manifest.csv"
-    if not test_manifest.exists():
-        run([sys.executable, "scripts/create_split_manifest.py", "--images-dir", output_root / "prepared/internal/test/images", "--masks-dir", output_root / "prepared/internal/test/masks", "--output", test_manifest, "--source", "isic17_test"])
     final = output_root / "final/evaluation_complete.json"
     if not final.exists():
+        test_manifest = output_root / "prepared/internal/test_manifest.csv"
+        if not test_manifest.exists():
+            run([sys.executable, "scripts/create_split_manifest.py", "--images-dir", output_root / "prepared/internal/test/images", "--masks-dir", output_root / "prepared/internal/test/masks", "--output", test_manifest, "--source", "isic17_test"])
         run([sys.executable, "scripts/evaluate_locked_v1_6.py", "--members-json", members, "--decision", decision, "--test-images", output_root / "prepared/internal/test/images", "--test-masks", output_root / "prepared/internal/test/masks", "--external-images", output_root / "prepared/external/images", "--external-masks", output_root / "prepared/external/masks", "--test-manifest", test_manifest, "--output-root", output_root / "final"])
     package_release(output_root, members, decision)
     state["phase"] = "complete"
@@ -842,7 +842,10 @@ def main():
     budget = TimeBudget(args.runtime_minutes, args.reserve_minutes)
     try:
         if state.get("phase") == "selection":
-            prepare_evaluation_data(args, output_root)
+            locked = output_root / "selection/locked_decision.json"
+            evaluated = output_root / "final/evaluation_complete.json"
+            if not (locked.exists() and evaluated.exists()):
+                prepare_evaluation_data(args, output_root)
             manifest = None
         else:
             merged = prepare_data(args, output_root, state)

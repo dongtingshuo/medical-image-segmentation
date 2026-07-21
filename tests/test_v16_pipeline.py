@@ -410,6 +410,35 @@ def test_v16_release_falls_back_to_hashed_training_provenance(tmp_path):
     assert release_manifest["published_variants"] == []
 
 
+def test_v16_recovered_evaluation_is_packaged_without_test_access(monkeypatch, tmp_path):
+    root = tmp_path / "research_v1_6"
+    decision = root / "selection/locked_decision.json"
+    decision.parent.mkdir(parents=True)
+    decision.write_text("{}", encoding="utf-8")
+    result = root / "final/evaluation_complete.json"
+    result.parent.mkdir(parents=True)
+    result.write_text("{}", encoding="utf-8")
+    members = root / "members.json"
+    members.write_text("[]", encoding="utf-8")
+    packaged = []
+    monkeypatch.setattr(v16_pipeline, "build_members", lambda _root: members)
+    monkeypatch.setattr(v16_pipeline, "run", lambda _command: pytest.fail("recovered evaluation reran a command"))
+    monkeypatch.setattr(
+        v16_pipeline,
+        "package_release",
+        lambda output_root, members_path, decision_path: packaged.append(
+            (Path(output_root), Path(members_path), Path(decision_path))
+        ),
+    )
+    state = {"phase": "selection", "completed": []}
+
+    v16_pipeline.run_selection_and_evaluation(root, state)
+
+    assert packaged == [(root, members, decision)]
+    assert state["phase"] == "complete"
+    assert state["completed"] == ["final_evaluation"]
+
+
 def test_v16_kaggle_installs_do_not_retain_pip_cache():
     notebook = open("notebooks/kaggle_v1_6.py", encoding="utf-8").read()
     gpu_setup = open("scripts/kaggle_prepare_gpu.py", encoding="utf-8").read()
