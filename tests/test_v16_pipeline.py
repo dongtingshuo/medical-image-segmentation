@@ -16,6 +16,7 @@ from scripts.run_v1_6_pipeline import (
     _prune_oof_candidate_payload,
     _select_oof_candidate,
     package_state,
+    prepare_evaluation_data,
     prune_runtime_data_for_oof,
     reset_teacher_training,
     restore_state_archive,
@@ -226,6 +227,34 @@ def test_v16_oof_cleanup_preserves_only_runtime_data_needed_by_students(monkeypa
 
     assert all(not (root / relative).exists() for relative in removed)
     assert all((root / relative).exists() for relative in kept)
+
+
+def test_v16_selection_prepares_only_locked_evaluation_splits(monkeypatch, tmp_path):
+    output_root = tmp_path / "research_v1_6"
+    calls = []
+
+    def fake_internal(_source, destination, image_size):
+        calls.append(("internal", image_size))
+        for relative in ("val/images", "val/masks", "test/images", "test/masks"):
+            (Path(destination) / relative).mkdir(parents=True, exist_ok=True)
+
+    def fake_external(_source, destination, excluded_ids, image_size):
+        calls.append(("external", excluded_ids, image_size))
+        for relative in ("images", "masks"):
+            (Path(destination) / relative).mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setattr(v16_pipeline, "prepare_internal_splits", fake_internal)
+    monkeypatch.setattr(v16_pipeline, "prepare_external_split", fake_external)
+    monkeypatch.setattr(v16_pipeline, "collect_sample_ids", lambda _root: {"held-out"})
+    args = SimpleNamespace(isic17_root="isic17", isic18_root="isic18")
+
+    prepared = prepare_evaluation_data(args, output_root)
+
+    assert prepared == output_root / "prepared"
+    assert calls == [("internal", None), ("external", {"held-out"}, None)]
+    assert not (output_root / "merged_train").exists()
+    assert not (output_root / "pretrain_data").exists()
+    assert not (output_root / "target_train_data").exists()
 
 
 def test_v16_oof_candidate_pruning_keeps_selection_metadata(tmp_path):

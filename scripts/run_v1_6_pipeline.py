@@ -445,6 +445,30 @@ def prepare_data(args, output_root, state):
     return merged
 
 
+def prepare_evaluation_data(args, output_root):
+    output_root = Path(output_root)
+    prepared = output_root / "prepared"
+    required = (
+        prepared / "internal/val/images",
+        prepared / "internal/val/masks",
+        prepared / "internal/test/images",
+        prepared / "internal/test/masks",
+        prepared / "external/images",
+        prepared / "external/masks",
+    )
+    if all(path.exists() for path in required):
+        return prepared
+    shutil.rmtree(prepared, ignore_errors=True)
+    prepare_internal_splits(args.isic17_root, prepared / "internal", image_size=None)
+    prepare_external_split(
+        args.isic18_root,
+        prepared / "external",
+        excluded_ids=collect_sample_ids(args.isic17_root),
+        image_size=None,
+    )
+    return prepared
+
+
 def architecture_config(base, architecture):
     definition = ARCHITECTURES[architecture]
     config = copy.deepcopy(base)
@@ -784,9 +808,13 @@ def main():
         reset_teacher_training(output_root, state)
     budget = TimeBudget(args.runtime_minutes, args.reserve_minutes)
     try:
-        merged = prepare_data(args, output_root, state)
-        manifest = merged / "data_manifest.csv"
-        prune_runtime_data_for_phase(output_root, state.get("phase"))
+        if state.get("phase") == "selection":
+            prepare_evaluation_data(args, output_root)
+            manifest = None
+        else:
+            merged = prepare_data(args, output_root, state)
+            manifest = merged / "data_manifest.csv"
+            prune_runtime_data_for_phase(output_root, state.get("phase"))
         if args.prepare_only:
             save_state(state_path, state)
         elif state["phase"] == "pretrain" and budget.can_start():
