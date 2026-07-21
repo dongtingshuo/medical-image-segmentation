@@ -1,0 +1,54 @@
+{
+  "fast": {
+    "test": {
+      "dice": 0.8582146755854289,
+      "iou": 0.7784774279594422,
+      "precision": 0.952571934858958,
+      "recall": 0.8198376933733622,
+      "specificity": 0.9914278316497803,
+      "boundary_f1": 0.48949657440185546,
+      "composite": 0.7660351502895355,
+      "samples": 600,
+      "low_contrast_dice": 0.8252902173995972,
+      "accepted": false
+    },
+    "external": {
+      "dice": 0.9327047750383556,
+      "iou": 0.8818084673729247,
+      "precision": 0.9613762066035927,
+      "recall": 0.9171060466480826,
+      "specificity": 0.9870493816520401,
+      "boundary_f1": 0.6444605220101789,
+      "composite": 0.8606437117813115,
+      "samples": 1002,
+      "accepted": true
+    }
+  },
+  "best_accuracy": {
+    "test": {
+      "dice": 0.8578785975774129,
+      "iou": 0.7820807870229085,
+      "precision": 0.906386555035909,
+      "recall": 0.8686150193214417,
+      "specificity": 0.9804793771107991,
+      "boundary_f1": 0.49023858706156415,
+      "composite": 0.7659685949484507,
+      "samples": 600,
+      "low_contrast_dice": 0.8211524200439453,
+      "accepted": false
+    },
+    "external": {
+      "dice": 0.947574814517579,
+      "iou": 0.9069961893582297,
+      "precision": 0.9788952147413394,
+      "recall": 0.9256545901298523,
+      "specificity": 0.9948271270283682,
+      "boundary_f1": 0.7320971842297537,
+      "composite": 0.8937054069456226,
+      "samples": 1002,
+      "accepted": true
+    }
+  },
+  "publish_default": false,
+  "publish_best_accuracy": false
+}

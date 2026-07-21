@@ -1,0 +1,7 @@
+{
+  "parent_kernel": "dongtingshuo/medseg-v1-6-session7",
+  "parent_state_sha256": "a2f79db0c224e0a5232d431972ed9d2a32b907008384ca066c4ae40f1de30516",
+  "locked_evaluation_kernel": "dongtingshuo/medseg-v1-6-session8/1",
+  "recovery_reason": "final evaluation completed before release packaging failed",
+  "evaluation_policy": "reuse locked results without test or external re-evaluation"
+}

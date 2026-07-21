@@ -1,0 +1,58 @@
+{
+  "members": [
+    "teacher-unetpp-fold0",
+    "teacher-unetpp-fold1",
+    "teacher-unetpp-fold2",
+    "teacher-unetpp-fold3",
+    "teacher-unetpp-fold4",
+    "teacher-segformer-fold0",
+    "teacher-segformer-fold1",
+    "teacher-segformer-fold2",
+    "teacher-segformer-fold3",
+    "teacher-segformer-fold4"
+  ],
+  "family_weights": {
+    "unetpp": 0.7,
+    "segformer": 0.3
+  },
+  "threshold": 0.7,
+  "tta": "multiscale_flip",
+  "postprocess": {
+    "enabled": false,
+    "min_component_area": 0,
+    "fill_holes": false
+  },
+  "validation_metrics": {
+    "threshold": 0.7,
+    "dice": 0.8455302906036377,
+    "iou": 0.7662863246599834,
+    "precision": 0.8741646456718445,
+    "recall": 0.8803589185078938,
+    "specificity": 0.9769589702288309,
+    "boundary_f1": 0.49788041710853576,
+    "composite": 0.7586178222298622,
+    "samples": 150
+  },
+  "oof_family_selection": {
+    "unetpp_weight": 0.7,
+    "segformer_weight": 0.3,
+    "dice": 0.8927630418275734,
+    "iou": 0.8228003835103598,
+    "precision": 0.8728307633993616,
+    "recall": 0.9457305945067042,
+    "specificity": 0.9798802922528431,
+    "boundary_f1": 0.5079944993118685,
+    "composite": 0.7965709061986471,
+    "samples": 1992
+  },
+  "fast": {
+    "member": "student-unetpp",
+    "threshold": 0.5,
+    "tta": "none",
+    "postprocess": {
+      "enabled": false,
+      "min_component_area": 0,
+      "fill_holes": false
+    }
+  }
+}
