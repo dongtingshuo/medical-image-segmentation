@@ -190,6 +190,21 @@ def prune_redundant_checkpoints(output_root):
             path.unlink(missing_ok=True)
 
 
+def prune_completed_pipeline_state(output_root):
+    output_root = Path(output_root)
+    state_path = output_root / "pipeline_state.json"
+    state = load_state(state_path)
+    if state.get("phase") != "complete":
+        return
+    shutil.rmtree(output_root / "models", ignore_errors=True)
+    shutil.rmtree(output_root / "oof/soft_masks", ignore_errors=True)
+    shutil.rmtree(output_root / "selection/validation_probability_cache", ignore_errors=True)
+    shutil.rmtree(output_root / "final/streaming", ignore_errors=True)
+    state["completed_state_models_pruned"] = True
+    state["resumable_model_state"] = "parent_kernel_state"
+    save_state(state_path, state)
+
+
 def reset_teacher_training(output_root, state):
     output_root = Path(output_root)
     models_root = output_root / "models"
@@ -219,6 +234,7 @@ def reset_teacher_training(output_root, state):
 def package_state(output_root):
     output_root = Path(output_root)
     _remove_recomputable_paths(output_root, RECOMPUTABLE_STATE_PATHS)
+    prune_completed_pipeline_state(output_root)
     prune_redundant_checkpoints(output_root)
     archive = output_root.parent / "v1_6_state.zip"
     temporary_archive = archive.with_name(f".{archive.name}.tmp")
@@ -230,7 +246,6 @@ def package_state(output_root):
     temporary_checksum.unlink(missing_ok=True)
     excluded = {
         "prepared",
-        "merged_train",
         "fold_data",
         "pretrain_data",
         "target_train_data",
@@ -242,7 +257,9 @@ def package_state(output_root):
     paths = [
         path
         for path in sorted(output_root.rglob("*"))
-        if path.is_file() and not any(part in excluded for part in path.relative_to(output_root).parts)
+        if path.is_file()
+        and path.name != "medical-segmentation-v1.6-release.zip"
+        and not any(part in excluded for part in path.relative_to(output_root).parts)
     ]
     unpacked_bytes = sum(path.stat().st_size for path in paths)
     free_bytes = shutil.disk_usage(output_root.parent).free
@@ -730,8 +747,24 @@ def package_release(output_root, members_path, decision_path):
             shutil.copy2(spec["config"], member / "runtime_config.yaml")
         (target / "ensemble.json").write_text(json.dumps(decision, indent=2), encoding="utf-8")
         published.append("best_accuracy")
-    for path in [decision_path, result_path, output_root / "merged_train/data_manifest.csv", output_root / "data_sources.json"]:
-        shutil.copy2(path, release / Path(path).name)
+    for path in [decision_path, result_path, output_root / "data_sources.json"]:
+        if Path(path).exists():
+            shutil.copy2(path, release / Path(path).name)
+    data_manifest = output_root / "merged_train/data_manifest.csv"
+    if data_manifest.exists():
+        shutil.copy2(data_manifest, release / data_manifest.name)
+    else:
+        state = load_state(output_root / "pipeline_state.json")
+        provenance = {
+            "data_manifest_sha256": state.get("data_manifest_sha256"),
+            "folds_sha256": state.get("folds_sha256"),
+            "source_commit": state.get("source_commit"),
+            "manifest_retained_in_parent_state": True,
+        }
+        (release / "training_data_provenance.json").write_text(
+            json.dumps(provenance, indent=2),
+            encoding="utf-8",
+        )
     manifest = {"version": "1.6", "published_variants": published, "default_replaced": results["publish_default"], "files": {}}
     for path in sorted(release.rglob("*")):
         if path.is_file():

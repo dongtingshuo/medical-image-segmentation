@@ -15,6 +15,8 @@ from scripts.run_v1_6_pipeline import (
     _materialize_subset,
     _prune_oof_candidate_payload,
     _select_oof_candidate,
+    load_state,
+    package_release,
     package_state,
     prepare_evaluation_data,
     prune_runtime_data_for_oof,
@@ -187,6 +189,8 @@ def test_v16_state_archive_has_versioned_name_and_checksum(tmp_path):
     (root / "prepared/raw.jpg").write_bytes(b"raw")
     (root / "target_train_data/train/images/raw.jpg").parent.mkdir(parents=True)
     (root / "target_train_data/train/images/raw.jpg").write_bytes(b"raw")
+    (root / "merged_train/data_manifest.csv").parent.mkdir(parents=True)
+    (root / "merged_train/data_manifest.csv").write_text("stem,status\na,accepted\n", encoding="utf-8")
     archive = package_state(root)
     assert archive.name == "v1_6_state.zip"
     assert archive.with_suffix(".zip.sha256").exists()
@@ -195,6 +199,7 @@ def test_v16_state_archive_has_versioned_name_and_checksum(tmp_path):
     assert (restored / "models/model.pth").exists()
     assert not (restored / "prepared/raw.jpg").exists()
     assert not (restored / "target_train_data/train/images/raw.jpg").exists()
+    assert (restored / "merged_train/data_manifest.csv").exists()
     assert not (root / "prepared").exists()
     assert not (root / "target_train_data").exists()
 
@@ -335,6 +340,74 @@ def test_v16_state_package_prunes_only_non_resumable_completed_checkpoints(tmp_p
     assert (restored / "models/teacher-unetpp-fold1/checkpoints/last_model.pth").exists()
     assert not (restored / "models/student-unetpp/checkpoints/best_model.pth").exists()
     assert (restored / "models/student-unetpp/checkpoints/last_model.pth").exists()
+
+
+def test_v16_complete_state_references_parent_models_and_stays_small(tmp_path):
+    root = tmp_path / "research_v1_6"
+    root.mkdir()
+    (root / "pipeline_state.json").write_text(
+        json.dumps({"version": "1.6", "phase": "complete", "completed": ["final_evaluation"]}),
+        encoding="utf-8",
+    )
+    (root / "models/teacher/checkpoints").mkdir(parents=True)
+    (root / "models/teacher/checkpoints/best_model.pth").write_bytes(b"weights")
+    (root / "oof/soft_masks").mkdir(parents=True)
+    (root / "oof/soft_masks/sample.png").write_bytes(b"mask")
+    (root / "selection/validation_probability_cache").mkdir(parents=True)
+    (root / "selection/validation_probability_cache/member.npy").write_bytes(b"cache")
+    (root / "final/streaming/test").mkdir(parents=True)
+    (root / "final/streaming/test/member.npy").write_bytes(b"cache")
+    release_archive = root / "medical-segmentation-v1.6-release.zip"
+    release_archive.write_bytes(b"release")
+
+    archive = package_state(root)
+    restored = tmp_path / "restored_complete"
+    restore_state_archive(archive, restored)
+    restored_state = load_state(restored / "pipeline_state.json")
+
+    assert not (root / "models").exists()
+    assert not (root / "oof/soft_masks").exists()
+    assert not (root / "selection/validation_probability_cache").exists()
+    assert not (root / "final/streaming").exists()
+    assert release_archive.exists()
+    assert not (restored / release_archive.name).exists()
+    assert restored_state["completed_state_models_pruned"] is True
+    assert restored_state["resumable_model_state"] == "parent_kernel_state"
+
+
+def test_v16_release_falls_back_to_hashed_training_provenance(tmp_path):
+    root = tmp_path / "research_v1_6"
+    root.mkdir()
+    decision = root / "selection/locked_decision.json"
+    decision.parent.mkdir(parents=True)
+    decision.write_text(json.dumps({"members": [], "fast": {"member": "unused"}}), encoding="utf-8")
+    result = root / "final/evaluation_complete.json"
+    result.parent.mkdir(parents=True)
+    result.write_text(
+        json.dumps({"publish_default": False, "publish_best_accuracy": False}),
+        encoding="utf-8",
+    )
+    members = root / "members.json"
+    members.write_text("[]", encoding="utf-8")
+    (root / "pipeline_state.json").write_text(
+        json.dumps(
+            {
+                "data_manifest_sha256": "manifest-sha",
+                "folds_sha256": "folds-sha",
+                "source_commit": "commit-sha",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    package_release(root, members, decision)
+    provenance = json.loads((root / "release/training_data_provenance.json").read_text(encoding="utf-8"))
+    release_manifest = json.loads((root / "release/release_manifest.json").read_text(encoding="utf-8"))
+
+    assert provenance["data_manifest_sha256"] == "manifest-sha"
+    assert provenance["folds_sha256"] == "folds-sha"
+    assert provenance["manifest_retained_in_parent_state"] is True
+    assert release_manifest["published_variants"] == []
 
 
 def test_v16_kaggle_installs_do_not_retain_pip_cache():
