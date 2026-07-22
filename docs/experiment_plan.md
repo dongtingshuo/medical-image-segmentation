@@ -1,4 +1,4 @@
-# Experiment Plan / 实验计划
+# Completed Experiment Plan / 已完成实验计划
 
 ## Purpose / 目的
 
@@ -7,6 +7,10 @@
 
 English:
 This plan organizes comparison experiments for model architectures, loss functions, augmentation settings, and high-capacity configurations.
+
+This document is retained as the historical experiment plan. The planned engineering and Kaggle research scope concluded in v1.6.0; new training is not scheduled under the current project.
+
+本文作为历史实验计划保留。计划内工程与 Kaggle 研究范围已在 v1.6.0 完成，当前项目不再安排新训练。
 
 ## Experiment 1: U-Net Baseline / 实验 1：U-Net 基线
 
@@ -56,13 +60,27 @@ Compare U-Net++, DeepLabV3+, and optional FPN configurations. Pretrained encoder
 English:
 Train with at least three random seeds on a fixed split and report mean and standard deviation. After model selection, evaluate on a test split that was not used for tuning.
 
-## Current Limitations / 当前限制
+## Completion Status / 完成状态
 
-中文：
-轻量 demo 仅用于验证流程。当前真实实验仅报告单一验证集结果；多随机种子、独立测试和外部验证尚未完成。
+| Scope | Status | Evidence |
+| --- | --- | --- |
+| Handwritten U-Net baseline | Complete | README baseline results and curve archive |
+| Attention/augmentation/loss comparison tooling | Complete as engineering workflow | Configs, toy demos, and tests; no clinical claim |
+| U-Net++ high-accuracy default | Complete | v1.0.0 verified checkpoint |
+| Repeated seeds and independent evaluation | Complete | v1.1 validation/test/external reports |
+| Cross-validation and encoder comparison | Complete | v1.2 reports |
+| Low-contrast variants | Complete | v1.3 report |
+| High-capacity/TTA candidates | Complete | v1.4 report |
+| Multi-source teachers and students | Complete, not published | v1.5 final evaluation |
+| Target-domain generalization | Complete, not published | v1.6 final evaluation |
 
-English:
-The lightweight demo is only for workflow validation. Current real-data experiments report one validation split only; repeated seeds, independent testing, and external validation remain incomplete.
+Repeated-seed, independent ISIC 2017 test, and ISIC 2018 external evaluations are complete. v1.5 and v1.6 did not pass the locked publication gate, so the verified v1.0.0 checkpoint remains the default. The remaining limitation is that all reported results are dataset-level engineering evidence rather than clinical validation.
+
+多随机种子、ISIC 2017 独立测试和 ISIC 2018 外部评估均已完成。v1.5 与 v1.6 未通过锁定发布门槛，因此已验证的 v1.0.0 checkpoint 继续作为默认模型。剩余限制是全部结果仍属于数据集级工程证据，而非临床验证。
+
+All historical training curves are indexed in [`TRAINING_CURVES.md`](TRAINING_CURVES.md). Additional model training requires a new project scope, independent-validation rationale, and explicit GPU budget.
+
+全部历史训练曲线见 [`TRAINING_CURVES.md`](TRAINING_CURVES.md)。新增模型训练需要重新立项，并明确独立验证依据和 GPU 预算。
 
 ## Medical Disclaimer / 医学免责声明
 

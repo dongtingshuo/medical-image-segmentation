@@ -4,8 +4,8 @@ title: "Medical Image Segmentation: Skin Lesion Segmentation with Improved U-Net
 type: software
 authors:
   - family-names: "dongtingshuo"
-version: 1.1.0
-date-released: 2026-06-22
+version: 1.6.0
+date-released: 2026-07-22
 license: MIT
 repository-code: "https://github.com/dongtingshuo/medical-image-segmentation"
 url: "https://github.com/dongtingshuo/medical-image-segmentation"

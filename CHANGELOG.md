@@ -2,6 +2,16 @@
 
 ## Unreleased / 未发布
 
+No unreleased changes.
+
+暂无未发布变更。
+
+## v1.6.0 - 2026-07-22
+
+This archival release concludes the planned engineering and Kaggle research series. It does not publish or replace model weights; the verified v1.0.0 checkpoint remains the default.
+
+本归档版本完成计划内工程开发与 Kaggle 研究系列。不发布或替换模型权重；已验证的 v1.0.0 checkpoint 继续作为默认模型。
+
 - Added `batch_predict.py` for directory-level inference with masks, overlays, lesion ratios, CSV, and JSON summaries.
 - Added `export.py` for TorchScript and ONNX export with manifest and SHA256 checksums.
 - Added Docker CPU demo runtime for the Gradio application.
@@ -19,6 +29,12 @@
 - Reported the completed v1.4 Kaggle run; all four candidates trained, but none satisfied the default-model replacement rule.
 - Corrected TTA and ensemble primary metrics to per-image macro aggregation while retaining explicit pixel-level `micro_*` diagnostics.
 - Made heavy TTA and ensemble evaluation use a configurable small batch, capture failure logs, preserve partial results, and resume analysis without retraining completed models.
+- Added the resumable v1.5 multi-source screening, five-fold teacher, OOF distillation, and locked ensemble workflow.
+- Added the resumable v1.6 HAM10000 pretraining, target-domain teacher, confidence-gated student, and ten-teacher ensemble workflow.
+- Recorded the one-time v1.5 and v1.6 independent-test/external evaluations; neither workflow passed the locked publication gate.
+- Archived all 49 unique historical training curves with adjacent raw metric histories and version-specific Markdown galleries.
+- Disabled W&B in the final v1.6 workflow and documented the completed no-publication decision.
+- Moved the repository to maintenance-only status after final documentation, validation, and release.
 
 ## v1.2.0 - 2026-06-25
 

@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/dongtingshuo/medical-image-segmentation/actions/workflows/ci.yml/badge.svg)](https://github.com/dongtingshuo/medical-image-segmentation/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/dongtingshuo/medical-image-segmentation)](https://github.com/dongtingshuo/medical-image-segmentation/releases/latest)
+[![Status: Maintenance](https://img.shields.io/badge/status-maintenance-blue.svg)](#project-status--项目状态)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 **English:** Skin lesion segmentation with improved U-Net models.  
@@ -10,6 +11,16 @@
 This repository implements a PyTorch-based binary medical image segmentation pipeline for skin lesion images. It supports U-Net, Attention U-Net, U-Net++, DeepLabV3+, Kaggle GPU training, local CPU/CUDA inference, batch prediction, metric evaluation, prediction visualization, ONNX/TorchScript export, Docker deployment, and a Gradio Web Demo.
 
 本项目实现了一个基于 PyTorch 的皮肤病灶二分类医学图像分割流程，支持 U-Net、Attention U-Net、U-Net++、DeepLabV3+、Kaggle GPU 训练、本地 CPU/CUDA 推理、批量预测、指标评估、预测可视化、ONNX/TorchScript 导出、Docker 部署和 Gradio Web Demo。
+
+## Project Status / 项目状态
+
+The planned engineering and Kaggle research series concluded with the v1.6.0 archive release. The repository is now maintenance-only: security fixes, dependency compatibility, reproducibility corrections, and critical bugs remain in scope; no further Kaggle training is scheduled.
+
+计划内的工程开发与 Kaggle 研究实验已随 v1.6.0 归档版本完成。本仓库现进入维护状态：仅处理安全问题、依赖兼容、可复现性修正和严重 bug，不再安排新的 Kaggle 训练。
+
+The verified v1.0.0 U-Net++ EfficientNet-B3 checkpoint remains the default inference model. Neither v1.5 nor v1.6 passed the locked independent-test release gate, so no experimental checkpoint replaced it.
+
+已验证的 v1.0.0 U-Net++ EfficientNet-B3 checkpoint 继续作为默认推理模型。v1.5 和 v1.6 均未通过锁定的独立测试发布门槛，因此没有实验 checkpoint 替换默认权重。
 
 ## Overview / 项目概述
 
@@ -91,6 +102,7 @@ The main project documents describe training, evaluation, result interpretation,
 - [docs/releases/v1.2.0.md](docs/releases/v1.2.0.md)
 - [docs/releases/v1.3.0.md](docs/releases/v1.3.0.md)
 - [docs/releases/v1.4.0.md](docs/releases/v1.4.0.md)
+- [docs/releases/v1.6.0.md](docs/releases/v1.6.0.md) - project completion archive / 项目收尾归档
 - [docs/v1_5_training.md](docs/v1_5_training.md) - resumable multi-source distillation and W&B workflow / 多源蒸馏、断点续训与 W&B 流程
 - [docs/v1_6_training.md](docs/v1_6_training.md) - target-domain generalization workflow and final decision / 目标域泛化流程与最终结论
 - [docs/TRAINING_CURVES.md](docs/TRAINING_CURVES.md) - complete 49-curve experiment archive / 49 条完整实验曲线归档
@@ -859,13 +871,17 @@ This project is intended only for medical image segmentation experiments and eng
 中文：
 本项目仅用于医学图像分割算法实验和工程流程验证，不用于临床诊断、治疗建议或真实医疗决策。
 
-## Future Work / 后续改进
+## Maintenance Policy / 维护策略
 
-- Extend subgroup analysis with body site and artifact metadata when available.
-- Re-evaluate v1.4 TTA and the B4 U-Net++/DeepLabV3+ ensemble with corrected macro metrics and batch size 1.
-- Compare additional encoders such as ResNet50 and ConvNeXt variants when GPU budget allows.
-- Add post-processing options for boundary smoothing or small false-positive removal.
-- Add GPU-oriented serving benchmarks for exported ONNX/TorchScript artifacts.
+- Keep the verified v1.0.0 checkpoint and `configs/final_model.yaml` as the stable inference baseline.
+- Accept security fixes, dependency compatibility updates, reproducibility corrections, and critical bug fixes.
+- Preserve v1.3-v1.6 results, raw metrics, and curves as historical evidence, including negative results.
+- Treat additional architectures, datasets, post-processing, and Kaggle training as unscheduled research directions requiring a new project scope.
+
+- 保持已验证的 v1.0.0 checkpoint 与 `configs/final_model.yaml` 作为稳定推理基线。
+- 接受安全修复、依赖兼容更新、可复现性修正和严重 bug 修复。
+- 保留 v1.3-v1.6 的结果、原始指标和曲线，包括未达标结果。
+- 新架构、新数据、后处理和 Kaggle 训练均视为未排期研究方向，需要重新立项。
 
 ## License / 许可证
 

@@ -4,6 +4,16 @@ This guide describes how to reproduce the training workflow, download Kaggle out
 
 本手册说明如何复现训练流程、下载 Kaggle 输出、本地预测以及启动 Gradio Demo。
 
+## Project Status / 项目状态
+
+The project completed its planned engineering and Kaggle research scope in v1.6.0 and is now maintenance-only. No new training is scheduled. The verified v1.0.0 checkpoint remains the default because v1.5 and v1.6 did not pass the locked independent-test release gate.
+
+项目已在 v1.6.0 完成计划内工程与 Kaggle 研究范围，现进入维护状态，不再安排新训练。由于 v1.5 和 v1.6 未通过锁定的独立测试发布门槛，已验证的 v1.0.0 checkpoint 继续作为默认模型。
+
+Historical results and all 49 training curves are indexed in [`docs/TRAINING_CURVES.md`](docs/TRAINING_CURVES.md).
+
+历史结果与全部 49 条训练曲线见 [`docs/TRAINING_CURVES.md`](docs/TRAINING_CURVES.md)。
+
 ## 1. Environment Setup / 环境配置
 
 Use Python 3.10-3.12. `requirements.txt` pins direct dependency versions; Kaggle uses `requirements-kaggle.txt` so that its GPU-specific PyTorch build remains under explicit control.

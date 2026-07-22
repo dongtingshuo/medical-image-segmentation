@@ -89,9 +89,9 @@ The experiment dataset is the ISIC 2017 segmentation train/validation split obta
 
 实验数据为通过 Kaggle 镜像 `moon1570/isic-2017-train-val-test-images-and-masks` 获取的 ISIC 2017 分割 train/validation 划分。本项目不再分发医疗图像，数据来源和授权边界记录在 [`DATASET.md`](../DATASET.md)。
 
-Future runs use deterministic PyTorch algorithms and seeded DataLoader workers by default. The legacy v1.0.0 run used seed 42, but its checkpoint did not persist complete package versions or the source commit; this limitation is recorded rather than reconstructed.
+The current training code uses deterministic PyTorch algorithms and seeded DataLoader workers by default. The legacy v1.0.0 run used seed 42, but its checkpoint did not persist complete package versions or the source commit; this limitation is recorded rather than reconstructed.
 
-后续训练默认使用 PyTorch 确定性算法和 DataLoader worker 随机种子。v1.0.0 历史实验使用 seed 42，但 checkpoint 未保存完整依赖版本和源码 commit；本报告将其如实记录为限制，不进行推测。
+当前训练代码默认使用 PyTorch 确定性算法和 DataLoader worker 随机种子。v1.0.0 历史实验使用 seed 42，但 checkpoint 未保存完整依赖版本和源码 commit；本报告将其如实记录为限制，不进行推测。
 
 ### 6.1 Dataset Check / 数据检查
 
@@ -573,7 +573,7 @@ The local runtime supports CPU/CUDA automatic selection. The high-accuracy model
 
 本地运行支持 CPU/CUDA 自动选择。高精度模型需要安装 `segmentation-models-pytorch`。
 
-## 11. Current Limitations and Future Work / 当前限制与后续工作
+## 11. Current Limitations and Maintenance Status / 当前限制与维护状态
 
 Limitations:
 
@@ -586,16 +586,19 @@ Limitations:
 - The legacy v1.0.0 checkpoint did not record complete package versions or a source commit.
 - The current overlay visualization displays predicted masks; true masks are saved separately.
 
-Future work:
+Completion and maintenance status:
 
-后续工作：
+完成与维护状态：
 
-- Publish the sanitized v1.2 research artifact package as a GitHub Release asset.
-- Extend subgroup analysis with body site and imaging-artifact metadata when available.
-- Compare more pretrained encoders.
-- Add post-processing for boundary refinement and small false-positive filtering.
-- Add deployment benchmarks for ONNX Runtime and TorchScript runtimes.
-- Run and report the v1.3 low-contrast specialist Kaggle workflow.
+- v1.3 low-contrast, v1.4 high-capacity, v1.5 multi-source distillation, and v1.6 target-domain workflows have all been completed and reported.
+- v1.5 and v1.6 did not pass the locked independent-test publication gate; the v1.0.0 checkpoint remains the default.
+- All 49 unique training curves and adjacent raw histories are archived under `docs/assets/experiments/` and indexed in `docs/TRAINING_CURVES.md`.
+- The repository is maintenance-only. New model training, datasets, or architecture studies require a separately approved project scope and are not part of the current backlog.
+
+- v1.3 低对比度、v1.4 高容量、v1.5 多源蒸馏和 v1.6 目标域流程均已完成并报告。
+- v1.5 与 v1.6 未通过锁定的独立测试发布门槛，v1.0.0 checkpoint 继续作为默认模型。
+- 49 条唯一训练曲线及其原始历史已归档到 `docs/assets/experiments/`，总索引见 `docs/TRAINING_CURVES.md`。
+- 仓库进入维护状态。新模型训练、新数据或架构研究需要单独批准的新项目范围，不属于当前 backlog。
 
 ## 12. Medical Disclaimer / 医学免责声明
 
