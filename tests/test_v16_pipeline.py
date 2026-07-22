@@ -444,6 +444,8 @@ def test_v16_session8_recovery_is_loaded_from_pinned_repository_commit():
 
     assert "Path(__file__).resolve().parent" not in wrapper
     assert 'source_root = repository / "kaggle_v1_6_session8_kernel/recovery"' in wrapper
+    assert 'source = source_root / source_name' in wrapper
+    assert 'source_root / "recovery"' not in wrapper
     assert wrapper.index('"checkout", "--detach", STATE_SOURCE_COMMIT') < wrapper.index("source_root = repository")
     for name in ("locked_decision.json", "evaluation_complete.json", "state_lineage.json"):
         assert (Path("kaggle_v1_6_session8_kernel/recovery") / name).exists()

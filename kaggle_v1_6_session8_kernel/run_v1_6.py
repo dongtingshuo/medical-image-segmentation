@@ -26,7 +26,7 @@ for source_name, target_name in (
     ("evaluation_complete.json", "final/evaluation_complete.json"),
     ("state_lineage.json", "state_lineage.json"),
 ):
-    source = source_root / "recovery" / source_name
+    source = source_root / source_name
     target = output_root / target_name
     if not source.exists():
         raise FileNotFoundError(f"Missing locked Session 8 recovery artifact: {source}")
