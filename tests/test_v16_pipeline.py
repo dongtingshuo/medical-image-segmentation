@@ -439,6 +439,16 @@ def test_v16_recovered_evaluation_is_packaged_without_test_access(monkeypatch, t
     assert state["completed"] == ["final_evaluation"]
 
 
+def test_v16_session8_recovery_is_loaded_from_pinned_repository_commit():
+    wrapper = Path("kaggle_v1_6_session8_kernel/run_v1_6.py").read_text(encoding="utf-8")
+
+    assert "Path(__file__).resolve().parent" not in wrapper
+    assert 'source_root = repository / "kaggle_v1_6_session8_kernel/recovery"' in wrapper
+    assert wrapper.index('"checkout", "--detach", STATE_SOURCE_COMMIT') < wrapper.index("source_root = repository")
+    for name in ("locked_decision.json", "evaluation_complete.json", "state_lineage.json"):
+        assert (Path("kaggle_v1_6_session8_kernel/recovery") / name).exists()
+
+
 def test_v16_kaggle_installs_do_not_retain_pip_cache():
     notebook = open("notebooks/kaggle_v1_6.py", encoding="utf-8").read()
     gpu_setup = open("scripts/kaggle_prepare_gpu.py", encoding="utf-8").read()
