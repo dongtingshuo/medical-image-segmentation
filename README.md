@@ -92,6 +92,8 @@ The main project documents describe training, evaluation, result interpretation,
 - [docs/releases/v1.3.0.md](docs/releases/v1.3.0.md)
 - [docs/releases/v1.4.0.md](docs/releases/v1.4.0.md)
 - [docs/v1_5_training.md](docs/v1_5_training.md) - resumable multi-source distillation and W&B workflow / 多源蒸馏、断点续训与 W&B 流程
+- [docs/v1_6_training.md](docs/v1_6_training.md) - target-domain generalization workflow and final decision / 目标域泛化流程与最终结论
+- [docs/TRAINING_CURVES.md](docs/TRAINING_CURVES.md) - complete 49-curve experiment archive / 49 条完整实验曲线归档
 - [examples/toy_segmentation_demo/README.md](examples/toy_segmentation_demo/README.md)
 
 ## System Architecture / 系统架构
@@ -515,9 +517,9 @@ kaggle_outputs/posthoc_analysis/posthoc_analysis/failure_cases_external/failure_
 kaggle_outputs/research_v1_2/medical-segmentation-research-artifacts-v1.2/research_v1_2/
 ```
 
-The full Kaggle outputs are kept outside Git tracking. A small set of representative curves, prediction samples, and sanity-check images is stored under `docs/assets/` for repository documentation.
+The full Kaggle outputs are kept outside Git tracking. All 49 unique historical training curves and their raw metric histories are archived under `docs/assets/experiments/`; checkpoints, datasets, and prediction caches remain excluded.
 
-完整 Kaggle 输出不纳入 Git 跟踪。仓库文档使用 `docs/assets/` 中的少量代表性曲线、预测样例和数据检查图。
+完整 Kaggle 输出不纳入 Git 跟踪。49 条唯一历史训练曲线及其原始指标历史已归档到 `docs/assets/experiments/`；checkpoint、数据集和预测缓存仍不提交。
 
 | Experiment | Model | Encoder | Image Size | Batch Size | Best Epoch | Loss | Val Loss at Best Dice Epoch | Dice | IoU | Precision | Recall | Training Time | Inference Time |
 | --- | --- | --- | ---: | ---: | ---: | --- | ---: | ---: | ---: | ---: | ---: | --- | --- |
@@ -752,25 +754,16 @@ Training curves:
 
 训练曲线：
 
-```text
-docs/assets/results/baseline_unet_training_curves.png
-docs/assets/results/high_accuracy_training_curves.png
-docs/assets/results/repeated_experiment/seed_42_training_curves.png
-docs/assets/results/research_v1_2/cv_fold_1_training_curves.png
-docs/assets/results/research_v1_2/encoder_effb3_training_curves.png
-docs/assets/results/research_v1_2/encoder_resnet34_training_curves.png
-docs/assets/analysis/threshold_search/threshold_search.md
-```
+The complete curve catalog is organized by sanity check, baseline, and versions v1.0-v1.6. Every experiment is directly embedded in its version Markdown page with the corresponding raw CSV.
+
+完整曲线目录按 sanity check、baseline 和 v1.0-v1.6 组织。每次实验均直接嵌入对应版本的 Markdown 页面，并紧邻其原始 CSV。
+
+- [Complete training-curve archive / 完整训练曲线归档](docs/TRAINING_CURVES.md)
+- [Threshold search report / 阈值搜索报告](docs/assets/analysis/threshold_search/threshold_search.md)
 
 ![Baseline U-Net training curves](docs/assets/results/baseline_unet_training_curves.png)
 
 ![High accuracy training curves](docs/assets/results/high_accuracy_training_curves.png)
-
-![Repeated experiment best seed training curves](docs/assets/results/repeated_experiment/seed_42_training_curves.png)
-
-![v1.2 cross-validation fold 1 training curves](docs/assets/results/research_v1_2/cv_fold_1_training_curves.png)
-
-![v1.2 EfficientNet-B3 encoder training curves](docs/assets/results/research_v1_2/encoder_effb3_training_curves.png)
 
 Prediction samples:
 

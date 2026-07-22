@@ -71,6 +71,23 @@ The default time budget is 570 minutes with a 30-minute packaging reserve. `last
 - Publish only `best_accuracy` when the ensemble passes but `fast` does not.
 - Keep the current default model when neither variant passes.
 
+## Completed Results
+
+The completed resumable run selected `student-segformer` as `fast`. Greedy validation selection produced a three-member `best_accuracy` ensemble: `student-segformer`, `teacher-segformer-fold2`, and `teacher-unetpp-fold1`. The locked thresholds were `0.45` for `fast` and `0.425` for the ensemble; neither used TTA or post-processing.
+
+| Variant | Split | Macro Dice | Boundary F1 | Low-Contrast Dice | Accepted |
+| --- | --- | ---: | ---: | ---: | --- |
+| `fast` | ISIC 2017 test | 0.855476 | 0.480229 | 0.826353 | No |
+| `best_accuracy` | ISIC 2017 test | 0.858502 | 0.490880 | 0.827653 | No |
+| `fast` | ISIC 2018 external | 0.928365 | 0.619147 | - | Yes |
+| `best_accuracy` | ISIC 2018 external | 0.929573 | 0.642300 | - | Yes |
+
+The external gates passed, but both variants missed the independent-test Dice and low-contrast gates. Therefore `publish_default` and `publish_best_accuracy` are both `false`; the existing default model remains unchanged. Raw locked decisions and final metrics are linked from the curve gallery.
+
+## Training Curves
+
+All 15 completed runs are directly embedded in the [v1.5 curve gallery](training_curves/v1.5.md): three architecture-screening runs, ten five-fold teachers, and two distilled students. Every curve is paired with its raw `metrics.csv`.
+
 ## Validation
 
 ```bash

@@ -1,0 +1,90 @@
+{
+  "fast": {
+    "member": "student-segformer",
+    "threshold": 0.45,
+    "tta": "none",
+    "postprocess": {
+      "enabled": false,
+      "min_component_area": 0,
+      "fill_holes": false
+    },
+    "validation_metrics": {
+      "threshold": 0.45,
+      "dice": 0.8828238415718078,
+      "iou": 0.8075177296002706,
+      "precision": 0.9212083888053894,
+      "recall": 0.880531587600708,
+      "specificity": 0.9898367094993591,
+      "boundary_f1": 0.607454948425293,
+      "composite": 0.8139816182851791,
+      "samples": 150
+    }
+  },
+  "members": [
+    "student-segformer",
+    "teacher-segformer-fold2",
+    "teacher-unetpp-fold1"
+  ],
+  "threshold": 0.425,
+  "tta": "none",
+  "postprocess": {
+    "enabled": false,
+    "min_component_area": 0,
+    "fill_holes": false
+  },
+  "validation_metrics": {
+    "threshold": 0.425,
+    "dice": 0.884472815990448,
+    "iou": 0.8097564442952474,
+    "precision": 0.9226885565121968,
+    "recall": 0.8818241628011068,
+    "specificity": 0.9908807619412741,
+    "boundary_f1": 0.612295130888621,
+    "composite": 0.8164283947149912,
+    "samples": 150
+  },
+  "selection_history": [
+    {
+      "step": 1,
+      "member": "student-segformer",
+      "improvement": Infinity,
+      "threshold": 0.45,
+      "dice": 0.8828238415718078,
+      "iou": 0.8075177296002706,
+      "precision": 0.9212083888053894,
+      "recall": 0.880531587600708,
+      "specificity": 0.9898367094993591,
+      "boundary_f1": 0.607454948425293,
+      "composite": 0.8139816182851791,
+      "samples": 150
+    },
+    {
+      "step": 2,
+      "member": "teacher-segformer-fold2",
+      "improvement": 0.0018083131313324508,
+      "threshold": 0.425,
+      "dice": 0.8828434173266093,
+      "iou": 0.8087301564216614,
+      "precision": 0.9231494164466858,
+      "recall": 0.8801928456624349,
+      "specificity": 0.9900202933947245,
+      "boundary_f1": 0.6146294736862182,
+      "composite": 0.8157899314165116,
+      "samples": 150
+    },
+    {
+      "step": 3,
+      "member": "teacher-unetpp-fold1",
+      "improvement": 0.0006384632984796079,
+      "threshold": 0.425,
+      "dice": 0.884472815990448,
+      "iou": 0.8097564442952474,
+      "precision": 0.9226885565121968,
+      "recall": 0.8818241628011068,
+      "specificity": 0.9908807619412741,
+      "boundary_f1": 0.612295130888621,
+      "composite": 0.8164283947149912,
+      "samples": 150
+    }
+  ]
+}
