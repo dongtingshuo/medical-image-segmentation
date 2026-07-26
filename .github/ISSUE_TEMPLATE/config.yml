@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Private security report / 私密安全报告
+    url: https://github.com/dongtingshuo/medical-image-segmentation/security/advisories/new
+    about: Report vulnerabilities privately; never put exploit details or sensitive medical data in a public issue.

@@ -1,4 +1,5 @@
 import csv
+import hashlib
 import json
 import os
 import shutil
@@ -16,6 +17,7 @@ PREPARED_ROOT = WORKING_ROOT / "prepared_data"
 RESULTS_ROOT = WORKING_ROOT / "posthoc_analysis"
 CHECKPOINT_PATH = WORKING_ROOT / "best_model.pth"
 CHECKPOINT_URL = "https://github.com/dongtingshuo/medical-image-segmentation/releases/download/v1.0.0/best_model.pth"
+CHECKPOINT_SHA256 = "4b04ccd5f4fbdad492a91ea9866d31b9329a886e74464ddf42fffa1854f76577"
 INTERNAL_DATASET_REF = "moon1570/isic-2017-train-val-test-images-and-masks"
 EXTERNAL_DATASET_REF = "tntiphan/isic-2018-task-1"
 
@@ -23,6 +25,25 @@ EXTERNAL_DATASET_REF = "tntiphan/isic-2018-task-1"
 def run(command, cwd=None):
     print(">>>", " ".join(str(part) for part in command), flush=True)
     subprocess.run([str(part) for part in command], cwd=cwd, check=True)
+
+
+def download_verified_checkpoint(url, destination, expected_sha256):
+    destination = Path(destination)
+    temporary = destination.with_suffix(destination.suffix + ".part")
+    temporary.unlink(missing_ok=True)
+    try:
+        urllib.request.urlretrieve(url, temporary)
+        digest = hashlib.sha256()
+        with temporary.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(8 * 1024 * 1024), b""):
+                digest.update(chunk)
+        actual = digest.hexdigest()
+        if actual != expected_sha256:
+            raise ValueError(f"Checkpoint SHA256 mismatch: {actual} != {expected_sha256}")
+        temporary.replace(destination)
+    except Exception:
+        temporary.unlink(missing_ok=True)
+        raise
 
 
 def resolve_dataset(dataset_ref, label):
@@ -127,7 +148,7 @@ def main():
     )
 
     print(f"Downloading checkpoint from {CHECKPOINT_URL}", flush=True)
-    urllib.request.urlretrieve(CHECKPOINT_URL, CHECKPOINT_PATH)
+    download_verified_checkpoint(CHECKPOINT_URL, CHECKPOINT_PATH, CHECKPOINT_SHA256)
     config_path = WORKING_ROOT / "posthoc_runtime.yaml"
     write_runtime_config(config_path)
 

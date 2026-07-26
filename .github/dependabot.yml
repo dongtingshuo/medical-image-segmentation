@@ -1,0 +1,41 @@
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: "/"
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    labels:
+      - dependencies
+    groups:
+      compatible-patch-updates:
+        update-types:
+          - patch
+    ignore:
+      # These packages are coupled to the published checkpoint, export paths,
+      # Docker image, and archived Kaggle GPU workflow. Upgrade them only in a
+      # dedicated, manually validated compatibility migration.
+      - dependency-name: torch
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      - dependency-name: torchvision
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      - dependency-name: transformers
+        update-types: ["version-update:semver-major"]
+      - dependency-name: gradio
+        update-types: ["version-update:semver-major"]
+      - dependency-name: onnx
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      - dependency-name: pytest
+        update-types: ["version-update:semver-major"]
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    labels:
+      - dependencies
+    groups:
+      actions-minor-and-patch:
+        update-types:
+          - minor
+          - patch

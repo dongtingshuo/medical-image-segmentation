@@ -2,9 +2,15 @@
 
 ## Unreleased / 未发布
 
-No unreleased changes.
+- Updated the compatible `tqdm` patch release after an automated vulnerability audit, and documented why coupled PyTorch/Transformers/Gradio/ONNX migrations require dedicated checkpoint and hardware validation.
+- Added SHA256 verification to the historical post-hoc checkpoint downloader.
+- Corrected the model card to distinguish later cross-validation/subgroup studies from the unchanged v1.0.0 release artifact.
+- Added maintenance-focused GitHub issue, pull-request, and dependency-update configuration.
 
-暂无未发布变更。
+- 根据自动化漏洞审计更新兼容的 `tqdm` 补丁版本，并说明 PyTorch/Transformers/Gradio/ONNX 联动迁移必须先完成专门的权重与硬件验证。
+- 为历史后处理 checkpoint 下载流程增加 SHA256 校验。
+- 修正模型卡，明确区分后续交叉验证/子组研究与未被替换的 v1.0.0 发布权重。
+- 增加面向维护阶段的 GitHub Issue、Pull Request 与依赖更新配置。
 
 ## v1.6.0 - 2026-07-22
 
