@@ -1,5 +1,5 @@
 opencv-python-headless==4.10.0.84
-albumentations==1.4.24
+albumentations==2.0.8
 numpy==1.26.4
 matplotlib==3.9.4
 gradio==4.44.1
