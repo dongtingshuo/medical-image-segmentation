@@ -12,5 +12,5 @@ pytest==8.4.2
 tqdm==4.66.2
 segmentation-models-pytorch==0.3.4
 timm==0.9.7
-transformers==4.44.2
+transformers==5.5.0
 wandb==0.22.3
