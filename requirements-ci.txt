@@ -1,4 +1,4 @@
-opencv-python-headless==4.10.0.84
+opencv-python-headless==5.0.0.93
 albumentations==1.4.24
 numpy==1.26.4
 matplotlib==3.9.4
