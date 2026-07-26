@@ -1,0 +1,52 @@
+name: Maintenance bug report / 维护问题报告
+description: Report a reproducible security, compatibility, reproducibility, or critical runtime defect.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This project is maintenance-only. Do not include patient data, credentials, private paths, datasets, or checkpoints.
+        本项目处于维护阶段。请勿提交患者数据、凭据、私有路径、数据集或 checkpoint。
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area / 模块
+      options:
+        - Security / 安全
+        - Dependency compatibility / 依赖兼容
+        - Inference or export / 推理或导出
+        - Reproducibility / 可复现性
+        - Documentation / 文档
+        - Other critical bug / 其他严重问题
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Observed and expected behavior / 实际与预期行为
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction / 最小复现
+      description: Include the exact command and config, with private information removed.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment / 环境
+      description: OS, Python, PyTorch, CPU/GPU, package versions, and repository commit.
+      render: text
+    validations:
+      required: true
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope confirmation / 范围确认
+      options:
+        - label: I understand that new training, datasets, and architectures are outside the maintenance scope. / 我理解新训练、数据集和架构不在维护范围内。
+          required: true

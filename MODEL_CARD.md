@@ -48,11 +48,14 @@ Post-hoc threshold search selected `0.35` by validation Dice. Repeated engineeri
 
 - Evaluation is dataset-level engineering validation, not clinical validation.
 - Package versions and source commit were not embedded in the legacy v1.0.0 checkpoint.
-- No cross-validation, subgroup, calibration, reader study, or clinical validation was performed.
+- The released v1.0.0 checkpoint was selected on one 150-image validation split. Later repository studies added cross-validation, subgroup analysis, and independent/external evaluation, but did not retrain or replace this artifact.
+- No probability-calibration study, reader study, prospective study, or clinical validation was performed.
 - Performance may degrade under acquisition, device, skin-tone, lesion-type, or annotation shifts.
 - The selected model showed mild overfitting after its best epoch.
 
 Future checkpoints produced by the current code use checkpoint format version 2 and embed Python/PyTorch metadata.
+
+发布的 v1.0.0 checkpoint 基于 150 张图像的单一验证集完成选择。仓库后续实验增加了交叉验证、子组分析以及独立/外部评估，但未重新训练或替换该权重。项目尚未完成概率校准研究、阅片者研究、前瞻性研究或临床验证。
 
 当前代码新生成的 checkpoint 使用格式版本 2，并写入 Python/PyTorch 环境元数据。
 

@@ -7,6 +7,6 @@ huggingface-hub==0.25.2
 PyYAML==6.0.2
 pytest==8.4.2
 ruff==0.11.13
-tqdm==4.66.2
+tqdm==4.66.3
 segmentation-models-pytorch==0.3.4
 timm==0.9.7
