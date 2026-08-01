@@ -10,7 +10,7 @@ huggingface-hub==0.25.2
 PyYAML==6.0.3
 pytest==8.4.2
 tqdm==4.66.3
-segmentation-models-pytorch==0.3.4
+segmentation-models-pytorch==0.5.0
 timm==0.9.7
 transformers==4.44.2
 wandb==0.22.3
